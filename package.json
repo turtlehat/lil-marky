@@ -1,0 +1,14 @@
+{
+    "name": "lil-marky",
+    "version": "1.0.0",
+    "main": "src/lil-marky.js",
+    "scripts": {
+        "test": "mocha test/lilMockyTest.js"
+    },
+    "author": "Doug Mcleod <doug@dougmcleod.ca>",
+    "license": "MIT",
+    "devDependencies": {
+        "chai": "^4.3.3",
+        "mocha": "^10.7.3"
+    }
+}
