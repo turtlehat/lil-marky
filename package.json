@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "main": "src/lil-marky.js",
     "scripts": {
-        "test": "mocha test/lilMockyTest.js"
+        "test": "mocha test/lilMarkyTest.js"
     },
     "author": "Doug Mcleod <doug@dougmcleod.ca>",
     "license": "MIT",
