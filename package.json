@@ -1,7 +1,11 @@
 {
     "name": "lil-marky",
     "version": "1.0.0",
-    "main": "src/lil-marky.js",
+    "main": "./src/lil-marky.js",
+	"exports": {
+		"require": "./src/lil-marky.js",
+		"import": "./esm/lil-marky.js"
+	},
     "scripts": {
         "test": "mocha test/lilMarkyTest.js"
     },
