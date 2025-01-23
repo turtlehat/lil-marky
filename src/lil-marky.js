@@ -589,6 +589,15 @@ function plainRenderNodes(nodes, options, depth = 0) {
 	for (const node of nodes) {
 		const innerText = node.children ? plainRenderNodes(node.children, options, depth + 1) : null;
 
+		if (options.element && options.element[node.type]) {
+			const overrideText = options.element[node.type](node.props, innerText, depth);
+
+			if (overrideText !== undefined) {
+				text += overrideText;
+				continue;
+			}
+		}
+
 		switch (node.type) {
 			case 'paragraph':
 				if (innerText)
@@ -648,81 +657,4 @@ function plainRenderNodes(nodes, options, depth = 0) {
 	return depth == 0 ? text.trim() : text;
 }
 
-function whatsApp(options = {}) {
-	return nodes => whatsAppRenderNodes(nodes, options);
-}
-
-function whatsAppRenderNodes(nodes, options, depth = 0) {
-	if (!nodes)
-		return '';
-
-	let text = '';
-
-	for (const node of nodes) {
-		const innerText = node.children ? whatsAppRenderNodes(node.children, options, depth + 1) : null;
-
-		switch (node.type) {
-			case 'paragraph':
-				if (innerText)
-					text += `${innerText}\n\n`;
-				break;
-			case 'line_break':
-				text += '\n';
-				break;
-			case 'heading': {
-				text += `*${innerText}*\n\n`;
-			} break;
-			case 'block_quote':
-				text += `> ${innerText}`;
-				break;
-			case 'code_block':
-				text += "```\n" + innerText + "```\n\n";
-				break;
-			case 'list': {
-				if (depth == 0) {
-					text += innerText.replace(/{{list_item_start}}/g, '\n\n').trim() + '\n\n';
-				} else {
-					text += innerText;
-				}
-			} break;
-			case 'list_item':
-				let itemBullet = node.props.bullet;
-
-				if (itemBullet == '*' || itemBullet == '-')
-					itemBullet = '-';
-
-				text += `{{list_item_start}}${itemBullet} ${innerText.replace(/\n/g, ' ')}`;
-				break;
-			case 'bold':
-				text += `*${innerText}*`;
-				break;
-			case 'italic':
-				text += `_${innerText}_`;
-				break;
-			case 'strike_through':
-				text += `~${innerText}~`;
-				break;
-			case 'hrule':
-				text += `---\n\n`;
-				break;
-			case 'link': {
-				if (innerText != node.props.url) {
-					text += `*${innerText}:* ${node.props.url}`;
-				} else {
-					text += node.props.url;
-				}
-			} break;
-			case 'code':
-				text += "`" + innerText + "`";
-			break;
-			case 'text':
-				text += node.props.value;
-				break;
-		}
-	}
-
-	return depth == 0 ? text.trim() : text;
-}
-
-// export default { create, html, plain, whatsApp };
-module.exports = { create, html, plain, whatsApp };
+module.exports = { create, html, plain };
