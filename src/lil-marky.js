@@ -58,7 +58,6 @@ function createParser(options) {
 	}
 
 	function parseBlockNodes(parentToken, tokens) {
-		// console.log('PARSEBLOCKNODES', parentToken, tokens);
 		const nodes = [];
 		const numTokens = tokens.length;
 		let group;
@@ -238,7 +237,7 @@ const defaultSchemas = {
 	},
 	code_block: {
 		stage: 'block',
-		pattern: /(?<=^|\n)[ \t]*[\`]{3}(?<_cde_syn>\w*?)\n(?<_cde_txt>.+?)[\`]{3}(?=\n\n|$)/,
+		pattern: /(?<=^|\n)[ \t]*[\`]{3}(?<_cde_syn>\w*?)\n(?<_cde_txt>.+?)[\`]{3}(?=\n|$)/,
 		matchGroup: '_cde_txt',
 		token: (match) => ({
 			type: 'code_block',

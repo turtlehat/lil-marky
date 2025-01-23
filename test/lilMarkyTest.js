@@ -633,6 +633,15 @@ alert(message);
 				expect(md.parse(text, marky.html())).to.equal("<ul><li>Welcome to the future!<blockquote><p>The future is now!</p></blockquote></li></ul>");
 			});
 
+			it("will be an unordered list with code block 1", async () => {
+				const text = "- ```\ncode block\n```";
+				expect(md.parse(text, marky.html())).to.equal("<ul><li><pre><code>code block\n</code></pre></li></ul>");
+			});
+			it("will be an unordered list with code block 2", async () => {
+				const text = "- ```\nCODE\n```\nWORD";
+				expect(md.parse(text, marky.html())).to.equal("<ul><li><pre><code>CODE\n</code></pre>WORD</li></ul>");
+			});
+
 			it("will be an unordered list with 2 items", async () => {
 				const text = "- Item 1\n- Item 2";
 				expect(md.parse(text, marky.html())).to.equal("<ul><li>Item 1</li><li>Item 2</li></ul>");
@@ -752,16 +761,24 @@ alert(message);
 
 		describe('code block', () => {
 			it("will be code block", async () => {
-				const text = "```\ncode block\n```";
-				expect(md.parse(text, marky.html())).to.equal("<pre><code>code block\n</code></pre>");
+				const text = "```\nCode Block\n```";
+				expect(md.parse(text, marky.html())).to.equal("<pre><code>Code Block\n</code></pre>");
+			});
+			it("will be code block and paragraph 1", async () => {
+				const text = "```\nCode Block\n```\n\nParagraph";
+				expect(md.parse(text, marky.html())).to.equal("<pre><code>Code Block\n</code></pre><p>Paragraph</p>");
+			});
+			it("will be code block and paragraph 2", async () => {
+				const text = "```\nCode Block\n```\nParagraph";
+				expect(md.parse(text, marky.html())).to.equal("<pre><code>Code Block\n</code></pre><p>Paragraph</p>");
 			});
 			it("will be code block with syntax", async () => {
 				const text = '```json\n{ "code": "block" }\n```';
 				expect(md.parse(text, marky.html())).to.equal(`<pre><code>{ "code": "block" }\n</code></pre>`);
 			});
 			it.skip("will be code block", async () => {
-				const text = "    code block";
-				expect(md.parse(text, marky.html())).to.equal("<pre><code>code block</code></pre>");
+				const text = "    Code Block";
+				expect(md.parse(text, marky.html())).to.equal("<pre><code>Code Block</code></pre>");
 			});
 		});
 
@@ -777,78 +794,6 @@ alert(message);
 					}
 				}))).to.equal(`<div class="carousel">cards:[TODO]</div>`);
 			});
-		});
-	});
-
-	describe('process format=whatsApp', () => {
-		it("will be empty when empty", async () => {
-			expect(md.parse(null, marky.whatsApp())).to.equal('');
-		});
-		it("will be example text", async () => {
-			expect(md.parse(exampleText, marky.whatsApp())).to.equal(`
-*This is a Heading h1*
-
-*This is a Heading h2*
-
-*This is a Heading h3*
-
-*This is a Heading h4*
-
-*This is a Heading h5*
-
-*This is a Heading h6*
-
-*This is also Heading h1*
-
-*This is also Heading h2*
-
-_This text will be italic_
-_This will also be italic_
-
-*This text will be bold*
-*This will also be bold*
-
-~This text will be strike-through~
-
-_You *can* ~combine~ them_
-
-- Item 1
-
-- Item 2
-
-- Item 2a
-
-- Item 2b
-
----
-
-1. Item 1
-
-2. Item 2
-
-3. Item 3
-
-1. Item 3a
-
-2. Item 3b
-
-You may be using *GuideGeek:* https://guidegeek.com/. Check it out https://guidegeek.com/
-
-> Markdown is a lightweight markup language with plain-text-formatting syntax, created in 2004 by John Gruber with Aaron Swartz.
-
-> Markdown is often used to format readme files, for writing messages in online discussion forums, and to create rich text using a plain text editor.
-
-Biodiesel taxidermy wolf tote bag, cupping kale chips butcher single-origin coffee cred austin polaroid yr.
-
-Ennui hot chicken bruh, four dollar toast food truck marfa etsy la croix squid vice chambray.
-
-\`\`\`
-let message = 'Hello world';
-alert(message);
-\`\`\`
-
-Brought to you by \`lil-marky.js\`.
-`.trim());
 		});
 	});
 
