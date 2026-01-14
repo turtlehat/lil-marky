@@ -1,23 +1,23 @@
-# lil-marky ✨
+# lil-marky
 
 A lightweight, fast Markdown parser for JavaScript that converts Markdown text into an Abstract Syntax Tree (AST) with built-in HTML and plain text renderers.
 
-## Features 🎯
+## 🎯 Features
 
-- **Lightweight**: Minimal dependencies, focused on core Markdown parsing 🪶
-- **Fast**: Two-stage parsing (block → inline) for optimal performance ⚡
-- **Extensible**: Schema-driven architecture allows custom element definitions 🔧
-- **Flexible Rendering**: Built-in HTML and plain text renderers with customization options 🎨
-- **Dual Module Support**: Works with both CommonJS and ES modules 📦
-- **Comprehensive**: Supports all standard Markdown elements plus common extensions ✅
+- 🪶 **Lightweight**: Minimal dependencies, focused on core Markdown parsing
+- ⚡ **Fast**: Two-stage parsing (block → inline) for optimal performance
+- 🔧 **Extensible**: Schema-driven architecture allows custom element definitions
+- 🎨 **Flexible Rendering**: Built-in HTML and plain text renderers with customization options
+- 📦 **Dual Module Support**: Works with both CommonJS and ES modules
+- ✅ **Comprehensive**: Supports all standard Markdown elements plus common extensions
 
-## Installation 📥
+## 📥 Installation
 
 ```bash
 npm install lil-marky
 ```
 
-## Quick Start 🚀
+## 🚀 Quick Start
 
 ```javascript
 const marky = require('lil-marky');
@@ -37,7 +37,7 @@ const text = md.parse('# Hello *world*!', marky.plain());
 // Output: Hello world!
 ```
 
-## ES Module Usage 🎪
+## 🎪 ES Module Usage
 
 ```javascript
 import marky from './esm/lil-marky.js';
@@ -46,19 +46,19 @@ const md = marky.create();
 const result = md.parse('**Bold text**', marky.html());
 ```
 
-## Supported Markdown Elements 📝
+## 📝 Supported Markdown Elements
 
-- **Headings**: `# H1` through `###### H6`, plus setext style (`===`, `---`) 📰
-- **Emphasis**: `*italic*`, `**bold**`, `~~strikethrough~~` 💪
-- **Lists**: Unordered (`-`, `*`) and ordered (`1.`) with nesting 📋
-- **Links**: `[text](url)`, `<url>`, auto-linking (optional) 🔗
-- **Images**: `![alt](src "title")` 🖼️
-- **Code**: Inline `` `code` `` and fenced blocks ` ```lang ` 💻
-- **Blockquotes**: `> quote` with nesting support 💬
-- **Horizontal Rules**: `---` or `___` ➖
-- **Line Breaks**: Manual breaks and paragraph separation ↩️
+- 📰 **Headings**: `# H1` through `###### H6`, plus setext style (`===`, `---`)
+- 💪 **Emphasis**: `*italic*`, `**bold**`, `~~strikethrough~~`
+- 📋 **Lists**: Unordered (`-`, `*`) and ordered (`1.`) with nesting
+- 🔗 **Links**: `[text](url)`, `<url>`, auto-linking (optional)
+- 🖼️ **Images**: `![alt](src "title")`
+- 💻 **Code**: Inline `` `code` `` and fenced blocks ` ```lang `
+- 💬 **Blockquotes**: `> quote` with nesting support
+- ➖ **Horizontal Rules**: `---` or `___`
+- ↩️ **Line Breaks**: Manual breaks and paragraph separation
 
-## Custom Renderers 🎨
+## 🎨 Custom Renderers
 
 You can create custom renderers that receive the AST:
 
@@ -71,7 +71,7 @@ function customRenderer(nodes) {
 const result = md.parse(text, customRenderer);
 ```
 
-## AST Structure 🌳
+## 🌳 AST Structure
 
 The parser generates a hierarchical AST with nodes containing:
 
