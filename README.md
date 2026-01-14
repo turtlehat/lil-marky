@@ -48,15 +48,109 @@ const result = md.parse('**Bold text**', marky.html());
 
 ## 📝 Supported Markdown Elements
 
-- 📰 **Headings**: `# H1` through `###### H6`, plus setext style (`===`, `---`)
-- 💪 **Emphasis**: `*italic*`, `**bold**`, `~~strikethrough~~`
-- 📋 **Lists**: Unordered (`-`, `*`) and ordered (`1.`) with nesting
-- 🔗 **Links**: `[text](url)`, `<url>`, auto-linking (optional)
-- 🖼️ **Images**: `![alt](src "title")`
-- 💻 **Code**: Inline `` `code` `` and fenced blocks ` ```lang `
-- 💬 **Blockquotes**: `> quote` with nesting support
-- ➖ **Horizontal Rules**: `---` or `___`
-- ↩️ **Line Breaks**: Manual breaks and paragraph separation
+### 📰 Headings
+Supports ATX-style (`# H1` through `###### H6`) and Setext-style headings:
+
+```markdown
+# Heading 1
+## Heading 2
+### Heading 3
+
+Alt Heading 1
+=============
+
+Alt Heading 2
+-------------
+```
+
+### 💪 Emphasis
+Multiple emphasis styles for text formatting:
+
+```markdown
+*italic* or _italic_
+**bold** or __bold__
+***bold italic***
+~~strikethrough~~
+```
+
+### 📋 Lists
+Unordered and ordered lists with full nesting support:
+
+```markdown
+- Item 1
+- Item 2
+  - Nested item
+  - Another nested item
+
+1. First item
+2. Second item
+3. Third item
+```
+
+### 🔗 Links
+Multiple link formats including auto-linking:
+
+```markdown
+[Link text](https://example.com)
+[Link with title](https://example.com "Title")
+<https://example.com>
+<email@example.com>
+[Email with text](mailto:email@example.com?subject=Hello)
+```
+
+Auto-linking can be enabled with `marky.create({ autoLink: true })`.
+
+### 🖼️ Images
+Standard markdown image syntax:
+
+```markdown
+![Alt text](image.jpg)
+![Alt text](image.jpg "Image title")
+```
+
+### 💻 Code
+Inline code and fenced code blocks with optional syntax highlighting:
+
+```markdown
+Inline `code` in text
+
+```javascript
+// Fenced code block
+const x = 42;
+```
+```
+
+### 💬 Blockquotes
+Blockquotes with nesting support:
+
+```markdown
+> Single quote
+>
+> Multiple paragraphs
+
+> Outer quote
+>> Nested quote
+```
+
+### ➖ Horizontal Rules
+Create horizontal rules with:
+
+```markdown
+---
+___
+```
+
+### ↩️ Line Breaks
+Manual line breaks and paragraph separation:
+
+```markdown
+Line 1
+Line 2 (two spaces at end of line 1)
+
+Paragraph 1
+
+Paragraph 2 (blank line separates paragraphs)
+```
 
 ## 🎨 Custom Renderers
 
