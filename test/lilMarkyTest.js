@@ -524,6 +524,14 @@ alert(message);
 				const text = `[View Page](http://example.com "Example Site")`;
 				expect(md.parse(text, marky.html())).to.equal(`<p><a href="http://example.com" title="Example Site">View Page</a></p>`);
 			});
+			it("will be a paragraph with named web link with commas in URL", async () => {
+				const text = "[210 12240 Second Avenue, Richmond, BC V7E 3L8, Canada](https://www.google.com/maps/search/?api=1&query=210,12240+Second+Avenue,Richmond,BC,V7E+3L8,Canada)";
+				expect(md.parse(text, marky.html())).to.equal(`<p><a href="https://www.google.com/maps/search/?api=1&query=210,12240+Second+Avenue,Richmond,BC,V7E+3L8,Canada">210 12240 Second Avenue, Richmond, BC V7E 3L8, Canada</a></p>`);
+			});
+			it("will be a paragraph with mailto link with query parameters", async () => {
+				const text = "[Email us](mailto:test@mail.com?subject=Hello&body=Message)";
+				expect(md.parse(text, marky.html())).to.equal(`<p><a href="mailto:test@mail.com?subject=Hello&body=Message">Email us</a></p>`);
+			});
 
 			it("will be a paragraph with auto web link", async () => {
 				const text = "http://example.com";
