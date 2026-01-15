@@ -1,12 +1,12 @@
 function create(options = {}) {
 	const parser = createParser(options);
 
-	return Object.freeze({
+	return {
 		parse: (text, renderer) => {
 			const nodes = parser.parse(text);
 			return renderer ? renderer(nodes) : nodes;
 		}
-	});
+	};
 }
 
 function createParser(options) {
@@ -23,7 +23,7 @@ function createParser(options) {
 	mergeSchemas(schemas, options.schemas);
 
 	const blockTokenizer = createTokenizer(filterSchemaStage(schemas, 'block'));
-	const inlineTokenizer = createTokenizer(filterSchemaStage(schemas, 'inline'));
+	const inlineTokenizer = createTokenizer(filterSchemaStage(schemas, 'inline'), inlineTextSchemaToken);
 
 	function createNode(token) {
 		const node = {
@@ -31,27 +31,28 @@ function createParser(options) {
 			props: token.props
 		};
 
-		if (token.contains == 'blocks') {
+		if (token.contains === 'blocks') {
 			node.children = parseBlockNodes(token, blockTokenizer(token));
-		} else if (token.contains == 'phrasing') {
+		} else if (token.contains === 'phrasing') {
 			node.children = parseInlineNodes(token, inlineTokenizer(token));
-		} else if (token.contains == 'text') {
-			node.children = [schemas.text.token(token.text)];
+		} else if (token.contains === 'text') {
+			node.children = [inlineTextSchemaToken(token.text)];
 		}
 
 		return node;
 	}
 
-	function createGroupNode(group) {
+	function createContainerNode(schema, tokens) {
+		const containerToken = schema.containerToken(tokens);
 		const node = {
-			type: group.token.type,
-			props: group.token.props,
+			type: containerToken.type,
+			props: containerToken.props,
 			children: []
 		};
 
-		for (const childToken of group.childTokens) {
-			childToken.paragraphText = group.token.paragraphText;
-			node.children.push(createNode(childToken));
+		for (const token of tokens) {
+			token.paragraphText = containerToken.paragraphText;
+			node.children.push(createNode(token));
 		}
 
 		return node;
@@ -59,45 +60,47 @@ function createParser(options) {
 
 	function parseBlockNodes(parentToken, tokens) {
 		const nodes = [];
-		const numTokens = tokens.length;
-		let group;
+		const tokensLen = tokens.length;
+		let containerSchema;
+		let containerTokens = [];
 
-		for (let i = 0; i < numTokens; i++) {
+		for (let i = 0; i < tokensLen; i++) {
 			const token = tokens[i];
 
-			if (group) {
-				if (group.schema.isChild(group.token, token, tokens[i + 1])) {
-					group.childTokens.push(token);
+			if (containerSchema) {
+				if (containerSchema.isSibling(containerTokens[0], token, tokens[i + 1])) {
+					containerTokens.push(token);
 				} else {
-					nodes.push(createGroupNode(group));
-					group = null;
+					nodes.push(createContainerNode(containerSchema, containerTokens));
+					containerSchema = null;
+					containerTokens.length = 0;
 				}
 			}
 
-			if (!group) {
-				if (token.type == 'text_block') {
+			if (!containerSchema) {
+				if (token.type === 'text_block') {
 					// text_block is special and will either be a paragraph or promote children
 					if (parentToken.paragraphText) {
-						token.type = 'paragraph';
-						nodes.push(createNode(token));
+						nodes.push(createNode({ ...token, type: 'paragraph' }));
 					} else {
 						nodes.push(...createNode(token).children);
 					}
-				} else if (token.group) {
-					group = {
-						schema: schemas[token.group],
-						token: schemas[token.group].token(token),
-						childTokens: [token]
-					};
 				} else {
-					nodes.push(createNode(token));
+					const schema = schemas[token.type];
+
+					if (schema && schema.containerToken) {
+						containerSchema = schema;
+						containerTokens.push(token);
+					} else {
+						nodes.push(createNode(token));
+					}
 				}
 			}
-
-			// Groups are lazy and must be closed on the last token
-			if (group && i == numTokens - 1)
-				nodes.push(createGroupNode(group));
 		}
+
+		// Groups are lazy and must be closed on the last token
+		if (containerSchema)
+			nodes.push(createContainerNode(containerSchema, containerTokens));
 
 		return nodes;
 	}
@@ -112,33 +115,28 @@ function createParser(options) {
 		return nodes;
 	}
 
-	return Object.freeze({
+	return {
 		parse: (text) => {
 			if (!text)
 				return '';
 
-			return createNode(schemas.root.token(text)).children;
+			return createNode(rootSchemaToken(text)).children;
 		}
-	});
+	};
 }
 
+
+// Tokenizer
+
 const defaultSchemas = {
-	root: {
-		token: (text) => ({
-			type: 'root',
-			text: text,
-			paragraphText: true,
-			contains: 'blocks'
-		})
-	},
 	heading1: {
 		stage: 'block',
-		pattern: /(?<=^|\n)[ \t]*(?<_hdn1_lvl>[#]{1,6}) (?<_hdn1_txt>\S.+?)(?=\n|$)/,
+		pattern: /(?<=^|\n)[ \t]*(?<_hdn1_lvl>#{1,6}) (?<_hdn1_txt>\S.+?)(?=\n|$)/,
 		matchGroup: '_hdn1_txt',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'heading',
-			props: { level: match.groups._hdn1_lvl.length },
-			text: match.groups._hdn1_txt,
+			props: { level: groups._hdn1_lvl.length },
+			text: groups._hdn1_txt,
 			contains: 'phrasing'
 		})
 	},
@@ -146,51 +144,33 @@ const defaultSchemas = {
 		stage: 'block',
 		pattern: /(?<=^|\n)[ \t]*(?<_hrle>---|___)[ \t]*(?=\n|$)/,
 		matchGroup: '_hrle',
-		token: () => ({
-			type: 'hrule' 
+		token: (groups) => ({
+			type: 'hrule'
 		})
 	},
 	heading2: {
 		stage: 'block',
 		pattern: /(?<=^|\n)[ \t]*(?<_hdn2_txt>\S[^\n]+?)\n[ \t]*(?<_hdn2_lne>[=-]{2,})(?=\n|$)/,
 		matchGroup: '_hdn2_txt',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'heading',
-			props: { level: match.groups._hdn2_lne.startsWith('=') ? 1 : 2 },
-			text: match.groups._hdn2_txt,
+			props: { level: groups._hdn2_lne.startsWith('=') ? 1 : 2 },
+			text: groups._hdn2_txt,
 			contains: 'phrasing'
 		})
 	},
-	list: {
-		stage: 'group',
-		token: (firstToken) => {
-			return {
-				type: 'list',
-				props: { ...firstToken.props }
-			};
-		},
-		isChild: (listToken, nextToken, peakToken = {}) => {
-			if (nextToken.type == 'white_space' && nextToken.props.lines == 1 && peakToken.type == 'list_item') {
-				listToken.paragraphText = true;
-				nextToken = peakToken;
-			}
-
-			if (nextToken.type == 'list_item' && listToken.props.ordered == nextToken.props.ordered)
-				return listToken.props.ordered || listToken.props.bullet == nextToken.props.bullet;
-		}
-	},
 	list_item: {
 		stage: 'block',
-		pattern: /(?<=^|\n)(?<_lst_ind>[ \t]*)(?<_lst_blt>[*-]|\d+\.) (?<_lst_txt>\S.*?)(?=\n|$)/, // SLOW?
+		pattern: /(?<=^|\n)(?<_lst_ind>[ \t]*)(?<_lst_blt>[*-]|\d+\.) (?<_lst_txt>\S[^\n]*)(?=\n|$)/,
 		matchGroup: '_lst_txt',
-		token: (match) => {
+		token: (groups) => {
 			const props = {
 				ordered: false,
-				bullet: match.groups._lst_blt,
-				indent: match.groups._lst_ind.length,
+				bullet: groups._lst_blt,
+				indent: groups._lst_ind.length,
 			};
 
-			if (props.bullet != '*' && props.bullet != '-') {
+			if (props.bullet !== '*' && props.bullet !== '-') {
 				props.start = Number(props.bullet.substring(0, props.bullet.length - 1));
 				props.ordered = true;
 			}
@@ -198,51 +178,71 @@ const defaultSchemas = {
 			return {
 				type: 'list_item',
 				props: props,
-				text: match.groups._lst_txt,
-				contains: 'blocks',
-				group: 'list'
+				text: groups._lst_txt,
+				contains: 'blocks'
 			};
 		},
-		append: (token, nextToken, fullText) => {
-			if ((nextToken.type == 'list_item' && nextToken.props.indent > token.props.indent) ||
-				['block_quote', 'heading', 'hrule'].includes(nextToken.type)) 
-				return token.text += '\n' + fullText;
+		append: (token, nextToken, fullMatch) => {
+			if ((nextToken.type === 'list_item' && nextToken.props.indent > token.props.indent) || ['block_quote', 'heading', 'hrule'].includes(nextToken.type))
+				return token.text += `\n${fullMatch}`;
 
-			if (nextToken.type == 'text_block')
-				return token.text += '\n' + nextToken.text;
+			if (nextToken.type === 'text_block')
+				return token.text += `\n${nextToken.text}`;
+		},
+		containerToken: (tokens) => {
+			const token = {
+				type: 'list',
+				props: { ...tokens[0].props }
+			};
+
+			for (let i = 0; i < tokens.length - 1; i++) {
+				if (tokens[i + 1].type === 'white_space' && tokens[i + 1].props.lines === 1) {
+					token.paragraphText = true;
+					break;
+				}
+			}
+
+			return token;
+		},
+		isSibling: (firstToken, nextToken, peekToken = {}) => {
+			if (nextToken.type === 'white_space' && nextToken.props.lines === 1 && peekToken.type === 'list_item')
+				nextToken = peekToken;
+
+			if (nextToken.type === 'list_item' && firstToken.props.ordered === nextToken.props.ordered)
+				return firstToken.props.ordered || firstToken.props.bullet === nextToken.props.bullet;
 		}
 	},
 	block_quote: {
 		stage: 'block',
-		pattern: /(?<=^|\n)[ \t]*(?<_blqt_lvl>>+)(?: )?(?<_blqt_txt>\S.*?|)(?=\n|$)/, // SLOW?
+		pattern: /(?<=^|\n)[ \t]*(?<_blqt_lvl>>+)(?: )?(?<_blqt_txt>(?:\S.*?)?)(?=\n|$)/,
 		matchGroup: '_blqt_txt',
-		token: (match) => {
-			const props = { level: match.groups._blqt_lvl.length };
+		token: (groups) => {
+			const props = { level: groups._blqt_lvl.length };
 			return {
 				type: 'block_quote',
 				props: props,
-				// text: (match.groups._blqt_lvl ? match.groups._blqt_lvl : '') + match.groups._blqt_txt,
-				text: (props.level > 1 ? `${match.groups._blqt_lvl.substring(1)} ` : '') + match.groups._blqt_txt,
+				// text: (groups._blqt_lvl ? groups._blqt_lvl : '') + groups._blqt_txt,
+				text: `${props.level > 1 ? `${groups._blqt_lvl.substring(1)} ` : ''}${groups._blqt_txt}`,
 				paragraphText: true,
 				contains: 'blocks'
 			};
 		},
-		append: (token, nextToken, fullText) => {
+		append: (token, nextToken, fullMatch) => {
 			if (['block_quote', 'text_block'].includes(nextToken.type))
-				return token.text += '\n' + nextToken.text;
+				return token.text += `\n${nextToken.text}`;
 
 			if (['list_item', 'heading', 'hrule'].includes(nextToken.type))
-				return token.text += '\n' + fullText;
+				return token.text += `\n${fullMatch}`;
 		}
 	},
 	code_block: {
 		stage: 'block',
 		pattern: /(?<=^|\n)[ \t]*[\`]{3}(?<_cde_syn>\w*?)\n(?<_cde_txt>.+?)[\`]{3}(?=\n|$)/,
 		matchGroup: '_cde_txt',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'code_block',
-			props: { syntax: match.groups._cde_syn || null },
-			text: match.groups._cde_txt,
+			props: { syntax: groups._cde_syn || null },
+			text: groups._cde_txt,
 			contains: 'text'
 		})
 	},
@@ -250,25 +250,31 @@ const defaultSchemas = {
 		stage: 'block',
 		pattern: /(?<=^|\n)[ \t]*(?<_bltx_txt>\S.*?)(?=\n|$)/,
 		matchGroup: '_bltx_txt',
-		token: (match, parentToken) => ({
+		token: (groups) => ({
 			type: 'text_block',
-			text: match.groups._bltx_txt.trim(), // Maybe don't trim?
+			text: groups._bltx_txt.trim(), // Maybe don't trim?
 			contains: 'phrasing'
 		}),
-		append: (token, nextToken, fullText) => {
-			if (nextToken.type == 'text_block')
-				return token.text += '\n' + nextToken.text;
+		append: (token, nextToken, fullMatch) => {
+			if (nextToken.type === 'text_block')
+				return token.text += `\n${nextToken.text}`;
 		}
 	},
 	white_space: {
 		stage: 'block',
 		pattern: /(?:^|\n)(?<_whsp>[ \t\n]*)(?:\n|$)/,
 		matchGroup: '_whsp',
-		token: (match) => {
-			const newLineMatches = match[0].match(/\n/g);
+		token: (groups, fullMatch) => {
+			let text = fullMatch;
+			let nlCount = 0;
+
+			for (let i = 0; i < text.length; i++) {
+				if (text[i] === '\n') nlCount++;
+			}
+
 			return {
 				type: 'white_space',
-				props: { lines: newLineMatches ? newLineMatches.length - 1 : 0 }
+				props: { lines: nlCount - 1 }
 			};
 		}
 	},
@@ -276,9 +282,9 @@ const defaultSchemas = {
 		stage: 'inline',
 		pattern: /(?<!\\)(?<_bld_tag>[*_]{2})(?=\S)(?<_bld_txt>.+?)(?<=\S)(?<!\\)(\k<_bld_tag>)(?=[^*_]|$)/,
 		matchGroup: '_bld_txt',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'bold',
-			text: match.groups._bld_txt,
+			text: groups._bld_txt,
 			contains: 'phrasing'
 		})
 	},
@@ -286,9 +292,9 @@ const defaultSchemas = {
 		stage: 'inline',
 		pattern: /(?<!\\)(?<_itl_tag>[*_]{1})(?=\S)(?<_itl_txt>.+)(?<=\S)(?<!\\)(\k<_itl_tag>)(?=[^*_]|$)/,
 		matchGroup: '_itl_txt',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'italic',
-			text: match.groups._itl_txt,
+			text: groups._itl_txt,
 			contains: 'phrasing'
 		})
 	},
@@ -296,20 +302,20 @@ const defaultSchemas = {
 		stage: 'inline',
 		pattern: /~~(?=\S)(?<_skth_txt>.+?)(?<=\S)~~/,
 		matchGroup: '_skth_txt',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'strike_through',
-			text: match.groups._skth_txt,
+			text: groups._skth_txt,
 			contains: 'phrasing'
 		})
 	},
 	auto_link: {
 		stage: 'inline',
-		pattern: /(?<_atln>(?<!(\(|<))https?:\/\/[:@\/\w.\-+%?&;=#,~$*]+)/,
+		pattern: /(?<_atln>(?<![(<])https?:\/\/[:@\/\w.\-+%?&;=#,~$*]+)/,
 		matchGroup: '_atln',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'link',
-			props: { url: match.groups._atln },
-			text: match.groups._atln,
+			props: { url: groups._atln },
+			text: groups._atln,
 			contains: 'text'
 		})
 	},
@@ -317,10 +323,10 @@ const defaultSchemas = {
 		stage: 'inline',
 		pattern: /<(?<_lnk_url>((https?:\/\/|[\/\w.\-+%?&]+@)[:@\/\w.\-+%?&;=#,~$*]+))>/,
 		matchGroup: '_lnk_url',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'link',
-			props: { url: match.groups._lnk_url.startsWith('http') ? match.groups._lnk_url : `mailto:${match.groups._lnk_url}` },
-			text: match.groups._lnk_url,
+			props: { url: groups._lnk_url.startsWith('http') ? groups._lnk_url : `mailto:${groups._lnk_url}` },
+			text: groups._lnk_url,
 			contains: 'text'
 		})
 	},
@@ -328,24 +334,24 @@ const defaultSchemas = {
 		stage: 'inline',
 		pattern: /((?<_obj_img>!)?\[(?<_obj_txt>.*?)\])?\((?<_obj_url>((https?:\/\/|mailto:)[:@\/\w.\-+%?&;=#,~$*]+))( "(?<_obj_tle>.*?)")?\)/,
 		matchGroup: '_obj_url',
-		token: (match) => {
-			if (match.groups._obj_img) {
+		token: (groups) => {
+			if (groups._obj_img) {
 				return {
 					type: 'image',
 					props: {
-						url: match.groups._obj_url,
-						alt: match.groups._obj_txt,
-						title: match.groups._obj_tle
+						url: groups._obj_url,
+						alt: groups._obj_txt,
+						title: groups._obj_tle
 					}
 				};
 			} else {
 				return {
 					type: 'link',
 					props: {
-						url: match.groups._obj_url,
-						title: match.groups._obj_tle
+						url: groups._obj_url,
+						title: groups._obj_tle
 					},
-					text: match.groups._obj_txt,
+					text: groups._obj_txt,
 					contains: 'text'
 				};
 			}
@@ -353,11 +359,11 @@ const defaultSchemas = {
 	},
 	code: {
 		stage: 'inline',
-		pattern: /(?<_cde_tag>[\`]{1,3})(?=[^\s\`])(?<_cde_txt>.+?)(?<=[^\s\`])(\k<_cde_tag>)/,
+		pattern: /(?<_cde_tag>\`{1,3})(?=[^\s\`])(?<_cde_txt>.+?)(?<=[^\s\`])(\k<_cde_tag>)/,
 		matchGroup: '_cde_txt',
-		token: (match) => ({
+		token: (groups) => ({
 			type: 'code',
-			text: match.groups._cde_txt,
+			text: groups._cde_txt,
 			contains: 'text'
 		})
 	},
@@ -365,19 +371,25 @@ const defaultSchemas = {
 		stage: 'inline',
 		pattern: /(?<_lnbr>\n|  \n|<br>)/,
 		matchGroup: '_lnbr',
-		token: () => ({
+		token: (groups) => ({
 			type: 'line_break'
 		})
 	},
-	text: {
-		stage: 'inline',
-		token: (text) => ({
-			type: 'text',
-			props: { value: text ? text.replace(textEscapeRegex, '$1') : '' }
-		})
-	}
 };
-const textEscapeRegex = /\\([\\`*_{}[\]<>()#+-.!|~])/g;
+
+const textUnescapeRegex = /\\([\\`*_{}[\]<>()#+-.!|~])/g;
+
+const inlineTextSchemaToken = (text) => ({
+	type: 'text',
+	props: { value: text ? (text.indexOf('\\') === -1 ? text : text.replace(textUnescapeRegex, '$1')) : '' }
+});
+
+const rootSchemaToken = (text) => ({
+	type: 'root',
+	text: text,
+	paragraphText: true,
+	contains: 'blocks'
+});
 
 function mergeSchemas(targetSchemas, sourceSchemas, excludeIds = []) {
 	for (const id in sourceSchemas) {
@@ -389,66 +401,75 @@ function mergeSchemas(targetSchemas, sourceSchemas, excludeIds = []) {
 }
 
 function filterSchemaStage(schemas, stage) {
-	const stageSchemas = {};
-
-	for (const id in schemas) {
-		if (schemas[id].stage == stage)
-			stageSchemas[id] = schemas[id];
-	}
-
-	return stageSchemas;
-}
-
-function createTokenizer(schemas) {
-	const matchGroups = {};
+	const schemaList = [];
 	const patterns = [];
 
 	for (const id in schemas) {
-		const parser = schemas[id];
+		const schema = schemas[id];
 
-		if (parser.pattern) {
-			matchGroups[id] = parser.matchGroup;
-			patterns.push(parser.pattern.source);
+		if (schema.stage === stage && schema.pattern) {
+			schemaList.push({
+				matchGroup: schema.matchGroup,
+				token: schema.token,
+				append: schema.append
+			});
+			patterns.push(schema.pattern.source);
 		}
 	}
 
+	return { schemaList, patterns };
+}
+
+function createTokenizer(schemaData, textSchemaToken = null) {
+	const { schemaList, patterns } = schemaData;
 	const regex = new RegExp(patterns.join('|'), 'gs');
+	const schemaCount = schemaList.length;
 
 	return (parentToken) => {
 		const tokens = [];
-		let match;
+		const text = parentToken.text;
 		let prevLastIndex = 0;
+		let match;
 		let openToken;
 		let openSchema;
 
-		while ((match = regex.exec(parentToken.text)) != null) {
-			if (schemas.text && prevLastIndex < match.index)
-				tokens.push(schemas.text.token(parentToken.text.substring(prevLastIndex, match.index)));
+		while ((match = regex.exec(text)) !== null) {
+			const matchIndex = match.index;
 
-			for (const id in matchGroups) {
-				if (match.groups[matchGroups[id]] !== undefined) {
-					const token = schemas[id].token(match, parentToken);
+			if (textSchemaToken && prevLastIndex < matchIndex)
+				tokens.push(textSchemaToken(text.substring(prevLastIndex, matchIndex)));
 
-					if (!openSchema || !openSchema.append(openToken, token, match[0])) {
+			const groups = match.groups;
+			const fullMatch = match[0];
+
+			for (let i = 0; i < schemaCount; i++) {
+				const schema = schemaList[i];
+
+				if (groups[schema.matchGroup] !== undefined) {
+					const token = schema.token(groups, fullMatch);
+
+					if (!openSchema || !openSchema.append(openToken, token, fullMatch)) {
 						tokens.push(token);
 
-						if (schemas[id].append) {
+						if (schema.append) {
 							openToken = token;
-							openSchema = schemas[id];
+							openSchema = schema;
 						} else {
 							openToken = null;
 							openSchema = null;
 						}
 					}
+
 					break;
 				}
 			}
 
-			prevLastIndex = regex.lastIndex;
+			if (textSchemaToken)
+				prevLastIndex = regex.lastIndex;
 		}
 
-		if (schemas.text && prevLastIndex < parentToken.text.length)
-			tokens.push(schemas.text.token(parentToken.text.substring(prevLastIndex)));
+		if (textSchemaToken && prevLastIndex < text.length)
+			tokens.push(textSchemaToken(text.substring(prevLastIndex)));
 
 		return tokens;
 	};
@@ -562,7 +583,7 @@ function htmlRenderNodes(nodes, options) {
 				text += `<code>${innerText}</code>`;
 				break;
 			case 'text':
-				text += node.props.value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+				text += escapeHtml(node.props.value);
 				break;
 		}
 
@@ -615,8 +636,8 @@ function plainRenderNodes(nodes, options, depth = 0) {
 				text += `${innerText.trim()}\n\n`;
 				break;
 			case 'list': {
-				if (depth == 0) {
-					text += innerText.replace(/{{list_item_start}}/g, '\n\n').trim() + '\n\n';
+				if (depth === 0) {
+					text += `${innerText.replace(/{{list_item_start}}/g, '\n\n').trim()}\n\n`;
 				} else {
 					text += innerText;
 				}
@@ -624,7 +645,7 @@ function plainRenderNodes(nodes, options, depth = 0) {
 			case 'list_item':
 				let itemBullet = node.props.bullet;
 
-				if (itemBullet == '*' || itemBullet == '-')
+				if (itemBullet === '*' || itemBullet === '-')
 					itemBullet = '•';
 
 				text += `{{list_item_start}}${itemBullet} ${innerText.replace(/\n/g, ' ')}`;
@@ -638,7 +659,7 @@ function plainRenderNodes(nodes, options, depth = 0) {
 				text += `---\n\n`;
 				break;
 			case 'link': {
-				if (innerText != node.props.url) {
+				if (innerText !== node.props.url) {
 					text += `${innerText}: ${node.props.url}`;
 				} else {
 					text += node.props.url;
@@ -653,7 +674,44 @@ function plainRenderNodes(nodes, options, depth = 0) {
 		}
 	}
 
-	return depth == 0 ? text.trim() : text;
+	return depth === 0 ? text.trim() : text;
+}
+
+
+// Utils
+
+function escapeHtml(html) {
+	let isEscapedNeeded = false;
+
+	for (let i = 0; i < html.length; i++) {
+		const c = html[i];
+
+		if (c === '&' || c === '<' || c === '>') {
+			isEscapedNeeded = true;
+			break;
+		}
+	}
+
+	if (!isEscapedNeeded)
+		return html;
+
+	let escapedHtml = '';
+
+	for (let i = 0; i < html.length; i++) {
+		const c = html[i];
+
+		if (c === '&') {
+			escapedHtml += '&amp;';
+		} else if (c === '<') {
+			escapedHtml += '&lt;';
+		} else if (c === '>') {
+			escapedHtml += '&gt;';
+		} else {
+			escapedHtml += c;
+		}
+	}
+	
+	return escapedHtml;
 }
 
 module.exports = { create, html, plain };

@@ -703,6 +703,11 @@ alert(message);
 				const text = "- Item 1\nMore Text";
 				expect(md.parse(text, marky.html())).to.equal("<ul><li>Item 1<br>More Text</li></ul>");
 			});
+
+			it("will be unordered list with blank line and nested list", async () => {
+				const text = "- Item 1\n\n- Item 2\n  - Nested 1";
+				expect(md.parse(text, marky.html())).to.equal("<ul><li><p>Item 1</p></li><li><p>Item 2</p><ul><li>Nested 1</li></ul></li></ul>");
+			});
 		});
 
 		describe('blockquote', () => {
