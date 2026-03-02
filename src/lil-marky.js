@@ -16,28 +16,32 @@ function createParser(options) {
 	if (!options.autoLink)
 		excludeIds.push('auto_link');
 
-	// if (!options.preserveNewLines)
-		// excludeIds.push('white_space');
-
 	mergeSchemas(schemas, defaultSchemas, excludeIds);
 	mergeSchemas(schemas, options.schemas);
 
 	const blockTokenizer = createTokenizer(filterSchemaStage(schemas, 'block'));
-	const inlineTokenizer = createTokenizer(filterSchemaStage(schemas, 'inline'), inlineTextSchemaToken);
+	const inlineSchemaData = filterSchemaStage(schemas, 'inline');
+	const inlineTokenizer = createTokenizer(inlineSchemaData, inlineTextSchemaToken);
+	const { opaqueRegex, opaqueSchemas } = inlineSchemaData;
 
-	function createNode(token) {
-		const node = {
-			type: token.type,
-			props: token.props
-		};
+	function createBlockNode(token) {
+		if (token.contains === 'blocks')
+			return { type: token.type, props: token.props,
+				children: parseBlockNodes(token, blockTokenizer(token)) };
 
-		if (token.contains === 'blocks') {
-			node.children = parseBlockNodes(token, blockTokenizer(token));
-		} else if (token.contains === 'phrasing') {
-			node.children = parseInlineNodes(token, inlineTokenizer(token));
-		} else if (token.contains === 'text') {
+		if (token.contains === 'phrasing' && opaqueRegex)
+			extractOpaqueSpans(token, opaqueRegex, opaqueSchemas);
+
+		return createInlineNode(token, token.opaqueQueue);
+	}
+
+	function createInlineNode(token, opaqueQueue) {
+		const node = { type: token.type, props: token.props };
+
+		if (token.contains === 'phrasing')
+			node.children = parseInlineNodes(inlineTokenizer(token), opaqueQueue);
+		else if (token.contains === 'text')
 			node.children = [inlineTextSchemaToken(token.text)];
-		}
 
 		return node;
 	}
@@ -52,7 +56,7 @@ function createParser(options) {
 
 		for (const token of tokens) {
 			token.paragraphText = containerToken.paragraphText;
-			node.children.push(createNode(token));
+			node.children.push(createBlockNode(token));
 		}
 
 		return node;
@@ -62,7 +66,7 @@ function createParser(options) {
 		const nodes = [];
 		const tokensLen = tokens.length;
 		let containerSchema;
-		let containerTokens = [];
+		const containerTokens = [];
 
 		for (let i = 0; i < tokensLen; i++) {
 			const token = tokens[i];
@@ -81,18 +85,18 @@ function createParser(options) {
 				if (token.type === 'text_block') {
 					// text_block is special and will either be a paragraph or promote children
 					if (parentToken.paragraphText) {
-						nodes.push(createNode({ ...token, type: 'paragraph' }));
+						nodes.push(createBlockNode({ ...token, type: 'paragraph' }));
 					} else {
-						nodes.push(...createNode(token).children);
+						nodes.push(...createBlockNode(token).children);
 					}
 				} else {
 					const schema = schemas[token.type];
 
-					if (schema && schema.containerToken) {
+					if (schema?.containerToken) {
 						containerSchema = schema;
 						containerTokens.push(token);
 					} else {
-						nodes.push(createNode(token));
+						nodes.push(createBlockNode(token));
 					}
 				}
 			}
@@ -105,11 +109,14 @@ function createParser(options) {
 		return nodes;
 	}
 
-	function parseInlineNodes(parentToken, tokens) {
+	function parseInlineNodes(tokens, opaqueQueue) {
 		const nodes = [];
 
 		for (const token of tokens) {
-			nodes.push(createNode(token));
+			if (opaqueQueue && token.type === '_opaque')
+				nodes.push(createInlineNode(opaqueQueue.shift(), opaqueQueue));
+			else
+				nodes.push(createInlineNode(token, opaqueQueue));
 		}
 
 		return nodes;
@@ -120,7 +127,7 @@ function createParser(options) {
 			if (!text)
 				return '';
 
-			return createNode(rootSchemaToken(text)).children;
+			return createBlockNode(rootSchemaToken(text)).children;
 		}
 	};
 }
@@ -144,7 +151,7 @@ const defaultSchemas = {
 		stage: 'block',
 		pattern: /(?<=^|\n)[ \t]*(?<_hrle>---|___)[ \t]*(?=\n|$)/,
 		matchGroup: '_hrle',
-		token: (groups) => ({
+		token: () => ({
 			type: 'hrule'
 		})
 	},
@@ -221,7 +228,6 @@ const defaultSchemas = {
 			return {
 				type: 'block_quote',
 				props: props,
-				// text: (groups._blqt_lvl ? groups._blqt_lvl : '') + groups._blqt_txt,
 				text: `${props.level > 1 ? `${groups._blqt_lvl.substring(1)} ` : ''}${groups._blqt_txt}`,
 				paragraphText: true,
 				contains: 'blocks'
@@ -237,7 +243,7 @@ const defaultSchemas = {
 	},
 	code_block: {
 		stage: 'block',
-		pattern: /(?<=^|\n)[ \t]*[\`]{3}(?<_cde_syn>\w*?)\n(?<_cde_txt>.+?)[\`]{3}(?=\n|$)/,
+		pattern: /(?<=^|\n)[ \t]*[`]{3}(?<_cde_syn>\w*?)\n(?<_cde_txt>.+?)[`]{3}(?=\n|$)/,
 		matchGroup: '_cde_txt',
 		token: (groups) => ({
 			type: 'code_block',
@@ -252,10 +258,10 @@ const defaultSchemas = {
 		matchGroup: '_bltx_txt',
 		token: (groups) => ({
 			type: 'text_block',
-			text: groups._bltx_txt.trim(), // Maybe don't trim?
+			text: groups._bltx_txt.trim(),
 			contains: 'phrasing'
 		}),
-		append: (token, nextToken, fullMatch) => {
+		append: (token, nextToken) => {
 			if (nextToken.type === 'text_block')
 				return token.text += `\n${nextToken.text}`;
 		}
@@ -278,33 +284,23 @@ const defaultSchemas = {
 			};
 		}
 	},
-	bold: {
+	emphasis_inner: {
 		stage: 'inline',
-		pattern: /(?<!\\)(?<_bld_tag>[*_]{2})(?=\S)(?<_bld_txt>.+?)(?<=\S)(?<!\\)(\k<_bld_tag>)(?=[^*_]|$)/,
-		matchGroup: '_bld_txt',
+		pattern: /(?<!\\)(?<_emi_tag>[*_]{2}|~~)(?=\S)(?<_emi_txt>.+?)(?<=\S)(?<!\\)(\k<_emi_tag>)(?=[^*_]|$)/,
+		matchGroup: '_emi_txt',
 		token: (groups) => ({
-			type: 'bold',
-			text: groups._bld_txt,
+			type: groups._emi_tag === '~~' ? 'strike_through' : 'bold',
+			text: groups._emi_txt,
 			contains: 'phrasing'
 		})
 	},
-	italic: {
+	emphasis_outer: {
 		stage: 'inline',
-		pattern: /(?<!\\)(?<_itl_tag>[*_]{1})(?=\S)(?<_itl_txt>.+)(?<=\S)(?<!\\)(\k<_itl_tag>)(?=[^*_]|$)/,
-		matchGroup: '_itl_txt',
+		pattern: /(?<!\\)(?<_emo_tag>[*_]{1})(?=\S)(?<_emo_txt>.+)(?<=\S)(?<!\\)(\k<_emo_tag>)(?=[^*_]|$)/,
+		matchGroup: '_emo_txt',
 		token: (groups) => ({
 			type: 'italic',
-			text: groups._itl_txt,
-			contains: 'phrasing'
-		})
-	},
-	strike_through: {
-		stage: 'inline',
-		pattern: /~~(?=\S)(?<_skth_txt>.+?)(?<=\S)~~/,
-		matchGroup: '_skth_txt',
-		token: (groups) => ({
-			type: 'strike_through',
-			text: groups._skth_txt,
+			text: groups._emo_txt,
 			contains: 'phrasing'
 		})
 	},
@@ -344,22 +340,23 @@ const defaultSchemas = {
 						title: groups._obj_tle
 					}
 				};
-			} else {
-				return {
-					type: 'link',
-					props: {
-						url: groups._obj_url,
-						title: groups._obj_tle
-					},
-					text: groups._obj_txt,
-					contains: 'text'
-				};
 			}
+
+			return {
+				type: 'link',
+				props: {
+					url: groups._obj_url,
+					title: groups._obj_tle
+				},
+				text: groups._obj_txt,
+				contains: 'text'
+			};
 		}
 	},
 	code: {
 		stage: 'inline',
-		pattern: /(?<_cde_tag>\`{1,3})(?=[^\s\`])(?<_cde_txt>.+?)(?<=[^\s\`])(\k<_cde_tag>)/,
+		opaque: true,
+		pattern: /(?<_cde_tag>`{1,3})(?=[^\s`])(?<_cde_txt>.+?)(?<=[^\s`])(\k<_cde_tag>)/,
 		matchGroup: '_cde_txt',
 		token: (groups) => ({
 			type: 'code',
@@ -369,9 +366,9 @@ const defaultSchemas = {
 	},
 	line_break: {
 		stage: 'inline',
-		pattern: /(?<_lnbr>\n|  \n|<br>)/,
+		pattern: /(?<_lnbr>\n| {2}\n|<br>)/,
 		matchGroup: '_lnbr',
-		token: (groups) => ({
+		token: () => ({
 			type: 'line_break'
 		})
 	},
@@ -386,7 +383,7 @@ const inlineTextSchemaToken = (text) => ({
 
 const rootSchemaToken = (text) => ({
 	type: 'root',
-	text: text,
+	text,
 	paragraphText: true,
 	contains: 'blocks'
 });
@@ -403,21 +400,59 @@ function mergeSchemas(targetSchemas, sourceSchemas, excludeIds = []) {
 function filterSchemaStage(schemas, stage) {
 	const schemaList = [];
 	const patterns = [];
+	const opaqueSchemas = [];
+	const opaquePatterns = [];
 
 	for (const id in schemas) {
 		const schema = schemas[id];
 
-		if (schema.stage === stage && schema.pattern) {
-			schemaList.push({
-				matchGroup: schema.matchGroup,
-				token: schema.token,
-				append: schema.append
-			});
-			patterns.push(schema.pattern.source);
+		if (schema.stage !== stage || !schema.pattern)
+			continue;
+
+		if (schema.opaque) {
+			opaqueSchemas.push(schema);
+			opaquePatterns.push(schema.pattern.source);
+			continue;
 		}
+
+		schemaList.push({
+			matchGroup: schema.matchGroup,
+			token: schema.token,
+			append: schema.append
+		});
+		patterns.push(schema.pattern.source);
 	}
 
-	return { schemaList, patterns };
+	let opaqueRegex = null;
+
+	if (opaquePatterns.length) {
+		opaqueRegex = new RegExp(opaquePatterns.join('|'), 'gs');
+		schemaList.push({ matchGroup: '_opq', token: () => ({ type: '_opaque' }) });
+		patterns.push('(?<_opq>\\x00)');
+	}
+
+	return { schemaList, patterns, opaqueRegex, opaqueSchemas };
+}
+
+function extractOpaqueSpans(token, opaqueRegex, opaqueSchemas) {
+	const queue = [];
+
+	opaqueRegex.lastIndex = 0;
+	token.text = token.text.replace(opaqueRegex, (fullMatch, ...args) => {
+		const groups = args[args.length - 1];
+
+		for (const schema of opaqueSchemas) {
+			if (groups[schema.matchGroup] !== undefined) {
+				queue.push(schema.token(groups, fullMatch));
+				return '\x00';
+			}
+		}
+
+		return fullMatch;
+	});
+
+	if (queue.length)
+		token.opaqueQueue = queue;
 }
 
 function createTokenizer(schemaData, textSchemaToken = null) {
@@ -426,14 +461,19 @@ function createTokenizer(schemaData, textSchemaToken = null) {
 	const schemaCount = schemaList.length;
 
 	return (parentToken) => {
-		const tokens = [];
 		const text = parentToken.text;
+		const tokens = [];
 		let prevLastIndex = 0;
 		let match;
 		let openToken;
 		let openSchema;
 
 		while ((match = regex.exec(text)) !== null) {
+			if (match[0].length === 0) {
+				regex.lastIndex = match.index + 1;
+				continue;
+			}
+
 			const matchIndex = match.index;
 
 			if (textSchemaToken && prevLastIndex < matchIndex)
@@ -482,6 +522,8 @@ function html(options = {}) {
 	return nodes => htmlRenderNodes(nodes, options);
 }
 
+const prettyBlockTypes = new Set(['paragraph', 'heading', 'block_quote', 'code_block', 'list', 'list_item', 'hrule']);
+
 function htmlRenderNodes(nodes, options) {
 	if (!nodes)
 		return '';
@@ -491,7 +533,7 @@ function htmlRenderNodes(nodes, options) {
 	for (const node of nodes) {
 		const innerText = node.children ? htmlRenderNodes(node.children, options) : null;
 
-		if (options.element && options.element[node.type]) {
+		if (options.element?.[node.type]) {
 			const overrideText = options.element[node.type](node.props, innerText);
 
 			if (overrideText !== undefined) {
@@ -587,9 +629,7 @@ function htmlRenderNodes(nodes, options) {
 				break;
 		}
 
-		const blockTypes = ['paragraph', 'heading', 'block_quote', 'code_block', 'list', 'list_item', 'hrule'];
-
-		if (options.pretty && blockTypes.includes(node.type))
+		if (options.pretty && prettyBlockTypes.has(node.type))
 			text += '\n';
 	}
 
@@ -609,7 +649,7 @@ function plainRenderNodes(nodes, options, depth = 0) {
 	for (const node of nodes) {
 		const innerText = node.children ? plainRenderNodes(node.children, options, depth + 1) : null;
 
-		if (options.element && options.element[node.type]) {
+		if (options.element?.[node.type]) {
 			const overrideText = options.element[node.type](node.props, innerText, depth);
 
 			if (overrideText !== undefined) {
@@ -642,14 +682,14 @@ function plainRenderNodes(nodes, options, depth = 0) {
 					text += innerText;
 				}
 			} break;
-			case 'list_item':
+			case 'list_item': {
 				let itemBullet = node.props.bullet;
 
 				if (itemBullet === '*' || itemBullet === '-')
 					itemBullet = '•';
 
 				text += `{{list_item_start}}${itemBullet} ${innerText.replace(/\n/g, ' ')}`;
-				break;
+			} break;
 			case 'bold':
 			case 'italic':
 			case 'strike_through':
@@ -667,7 +707,7 @@ function plainRenderNodes(nodes, options, depth = 0) {
 			} break;
 			case 'code':
 				text += innerText;
-			break;
+				break;
 			case 'text':
 				text += node.props.value;
 				break;
@@ -710,7 +750,7 @@ function escapeHtml(html) {
 			escapedHtml += c;
 		}
 	}
-	
+
 	return escapedHtml;
 }
 

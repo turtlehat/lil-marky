@@ -595,6 +595,26 @@ alert(message);
 				const text = "`<http://example.com>`";
 				expect(md.parse(text, marky.html())).to.equal(`<p><code>&lt;http://example.com&gt;</code></p>`);
 			});
+
+			it("will not parse bold markers inside code spans", async () => {
+				const text = 'check **it out ```{ title: "**hello world**" }``` dude**';
+				expect(md.parse(text, marky.html())).to.equal('<p>check <strong>it out <code>{ title: "**hello world**" }</code> dude</strong></p>');
+			});
+
+			it("will not parse italic markers inside code spans", async () => {
+				const text = 'check *it out ```{ title: "*hello world*" }``` dude*';
+				expect(md.parse(text, marky.html())).to.equal('<p>check <em>it out <code>{ title: "*hello world*" }</code> dude</em></p>');
+			});
+
+			it("will not close italic on markers inside code spans", async () => {
+				const text = 'check *it `{ code: "word*" }` dude';
+				expect(md.parse(text, marky.html())).to.equal('<p>check *it <code>{ code: "word*" }</code> dude</p>');
+			});
+
+			it("will not parse strikethrough markers inside code spans", async () => {
+				const text = 'check ~~it out ```{ title: "~~hello world~~" }``` dude~~';
+				expect(md.parse(text, marky.html())).to.equal('<p>check <del>it out <code>{ title: "~~hello world~~" }</code> dude</del></p>');
+			});
 		});
 
 		describe('list', () => {
@@ -769,6 +789,14 @@ alert(message);
 			it("will be a blockquote with paragraph when blockquote follows blockquote", async () => {
 				const text = "> Block Quote 1\n> \n> Block Quote 2";
 				expect(md.parse(text, marky.html())).to.equal("<blockquote><p>Block Quote 1</p><p>Block Quote 2</p></blockquote>");
+			});
+			it("will be an empty blockquote when blockquote has no content", async () => {
+				const text = "> ";
+				expect(md.parse(text, marky.html())).to.equal("<blockquote></blockquote>");
+			});
+			it("will be an empty blockquote and paragraph", async () => {
+				const text = "> \n\nParagraph";
+				expect(md.parse(text, marky.html())).to.equal("<blockquote></blockquote><p>Paragraph</p>");
 			});
 		});
 
