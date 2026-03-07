@@ -1,7 +1,11 @@
 {
     "name": "lil-marky",
-    "version": "1.1.0",
+    "version": "1.1.2",
     "main": "./src/lil-marky.js",
+    "files": [
+        "src/lil-marky.js",
+        "esm/lil-marky.js"
+    ],
     "exports": {
         "require": "./src/lil-marky.js",
         "import": "./esm/lil-marky.js"

@@ -823,6 +823,29 @@ alert(message);
 			});
 		});
 
+		describe('code backslash preservation', () => {
+			it("will preserve backslashes in inline code", async () => {
+				const text = "`\\{foo\\}`";
+				expect(md.parse(text, marky.html())).to.equal("<p><code>\\{foo\\}</code></p>");
+			});
+			it("will preserve backslashes before special chars in inline code", async () => {
+				const text = "`\\*not bold\\*`";
+				expect(md.parse(text, marky.html())).to.equal("<p><code>\\*not bold\\*</code></p>");
+			});
+			it("will preserve backslashes in fenced code blocks", async () => {
+				const text = "```\n\\{foo\\}\n```";
+				expect(md.parse(text, marky.html())).to.equal("<pre><code>\\{foo\\}\n</code></pre>");
+			});
+			it("will preserve multiple backslash sequences in code blocks", async () => {
+				const text = "```\n\\[\\]\\{\\}\\(\\)\n```";
+				expect(md.parse(text, marky.html())).to.equal("<pre><code>\\[\\]\\{\\}\\(\\)\n</code></pre>");
+			});
+			it("will still unescape backslashes in normal text", async () => {
+				const text = "\\*not italic\\*";
+				expect(md.parse(text, marky.html())).to.equal("<p>*not italic*</p>");
+			});
+		});
+
 		describe('override code block', () => {
 			it("will be override code block", async () => {
 				const text = "```carousel\ncards:[TODO]\n```";
