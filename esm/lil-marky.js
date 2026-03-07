@@ -28,10 +28,15 @@ function createParser(options) {
     }
     function createInlineNode(token, opaqueQueue) {
         const node = { type: token.type, props: token.props };
-        if (token.contains === 'phrasing')
+        if (token.contains === 'phrasing') {
             node.children = parseInlineNodes(inlineTokenizer(token), opaqueQueue);
-        else if (token.contains === 'text')
+        }
+        else if (token.contains === 'raw') {
+            node.children = [{ type: 'text', props: { value: token.text || '' } }];
+        }
+        else if (token.contains === 'text') {
             node.children = [inlineTextSchemaToken(token.text)];
+        }
         return node;
     }
     function createContainerNode(schema, tokens) {
@@ -217,7 +222,7 @@ const defaultSchemas = {
             type: 'code_block',
             props: { syntax: groups._cde_syn || null },
             text: groups._cde_txt,
-            contains: 'text'
+            contains: 'raw'
         })
     },
     text_block: {
@@ -327,7 +332,7 @@ const defaultSchemas = {
         token: (groups) => ({
             type: 'code',
             text: groups._cde_txt,
-            contains: 'text'
+            contains: 'raw'
         })
     },
     line_break: {
