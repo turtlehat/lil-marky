@@ -278,7 +278,7 @@ const defaultSchemas = {
     },
     auto_link: {
         stage: 'inline',
-        pattern: /(?<_atln>(?<![(<])https?:\/\/[:@\/\w.\-+%?&;=#,~$*]+)/,
+        pattern: /(?<_atln>(?<![(<])https?:\/\/[:@\/\w.\-+%?&;=#,~$*()]+)/,
         matchGroup: '_atln',
         token: (groups) => ({
             type: 'link',
@@ -289,7 +289,7 @@ const defaultSchemas = {
     },
     link: {
         stage: 'inline',
-        pattern: /<(?<_lnk_url>((https?:\/\/|[\/\w.\-+%?&]+@)[:@\/\w.\-+%?&;=#,~$*]+))>/,
+        pattern: /<(?<_lnk_url>((https?:\/\/|[\/\w.\-+%?&]+@)[:@\/\w.\-+%?&;=#,~$*()]+))>/,
         matchGroup: '_lnk_url',
         token: (groups) => ({
             type: 'link',
@@ -300,14 +300,15 @@ const defaultSchemas = {
     },
     object: {
         stage: 'inline',
-        pattern: /((?<_obj_img>!)?\[(?<_obj_txt>.*?)\])?\((?<_obj_url>((https?:\/\/|mailto:)[:@\/\w.\-+%?&;=#,~$*]+))( "(?<_obj_tle>.*?)")?\)/,
-        matchGroup: '_obj_url',
+        pattern: /((?<_obj_img>!)?\[(?<_obj_txt>.*?)\])?\((?<_obj_ura>(?:<(?<_obj_urb>(?:https?:\/\/|mailto:)[:@\/\w.\-+%?&;=#,~$*()]+)>|(?:https?:\/\/|mailto:)[:@\/\w.\-+%?&;=#,~$*]+))( "(?<_obj_tle>.*?)")?\)/,
+        matchGroup: '_obj_ura',
         token: (groups) => {
+            const url = groups._obj_urb ?? groups._obj_ura;
             if (groups._obj_img) {
                 return {
                     type: 'image',
                     props: {
-                        url: groups._obj_url,
+                        url,
                         alt: groups._obj_txt,
                         title: groups._obj_tle
                     }
@@ -316,7 +317,7 @@ const defaultSchemas = {
             return {
                 type: 'link',
                 props: {
-                    url: groups._obj_url,
+                    url,
                     title: groups._obj_tle
                 },
                 text: groups._obj_txt,

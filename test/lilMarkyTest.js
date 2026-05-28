@@ -560,6 +560,36 @@ alert(message);
 					}
 				}}))).to.equal(`<p><a href="http://example.com">View Page</a></p>`);
 			});
+
+			it("will be a paragraph with web link containing parens", async () => {
+				const text = "<https://en.wikipedia.org/wiki/Foo_(bar)>";
+				expect(md.parse(text, marky.html())).to.equal(`<p><a href="https://en.wikipedia.org/wiki/Foo_(bar)">https://en.wikipedia.org/wiki/Foo_(bar)</a></p>`);
+			});
+			it("will be an auto web link containing parens", async () => {
+				const text = "https://en.wikipedia.org/wiki/Foo_(bar)";
+				md = marky.create({ autoLink: true });
+				expect(md.parse(text, marky.html())).to.equal(`<p><a href="https://en.wikipedia.org/wiki/Foo_(bar)">https://en.wikipedia.org/wiki/Foo_(bar)</a></p>`);
+			});
+			it("will be a named link with bracketed destination containing parens", async () => {
+				const text = "[wiki](<https://en.wikipedia.org/wiki/Foo_(bar)>)";
+				expect(md.parse(text, marky.html())).to.equal(`<p><a href="https://en.wikipedia.org/wiki/Foo_(bar)">wiki</a></p>`);
+			});
+			it("will be a named mailto link with bracketed destination", async () => {
+				const text = "[email](<mailto:foo@bar.com>)";
+				expect(md.parse(text, marky.html())).to.equal(`<p><a href="mailto:foo@bar.com">email</a></p>`);
+			});
+			it("will be a named link with bracketed destination and title", async () => {
+				const text = `[wiki](<https://x.com/Foo_(bar)> "A title")`;
+				expect(md.parse(text, marky.html())).to.equal(`<p><a href="https://x.com/Foo_(bar)" title="A title">wiki</a></p>`);
+			});
+			it("will not match bracketed destination without http or mailto scheme", async () => {
+				const text = "[link](<ftp://example.com/foo>)";
+				expect(md.parse(text, marky.html())).to.equal(`<p>[link](&lt;ftp://example.com/foo&gt;)</p>`);
+			});
+			it("will not match javascript scheme in bracketed destination", async () => {
+				const text = "[click](<javascript:alert(1)>)";
+				expect(md.parse(text, marky.html())).to.equal(`<p>[click](&lt;javascript:alert(1)&gt;)</p>`);
+			});
 		});
 
 		describe('image', () => {
@@ -570,6 +600,14 @@ alert(message);
 			it("will be a paragraph with image with title", async () => {
 				const text = `![Alt Text](http://example.com/image.jpg "Example Image")`;
 				expect(md.parse(text, marky.html())).to.equal(`<p><img src="http://example.com/image.jpg" alt="Alt Text" title="Example Image"></p>`);
+			});
+			it("will be a paragraph with image with bracketed destination containing parens", async () => {
+				const text = "![Alt Text](<http://example.com/foo_(bar).jpg>)";
+				expect(md.parse(text, marky.html())).to.equal(`<p><img src="http://example.com/foo_(bar).jpg" alt="Alt Text"></p>`);
+			});
+			it("will be a paragraph with image with bracketed destination and title", async () => {
+				const text = `![Alt Text](<http://example.com/foo_(bar).jpg> "Example Image")`;
+				expect(md.parse(text, marky.html())).to.equal(`<p><img src="http://example.com/foo_(bar).jpg" alt="Alt Text" title="Example Image"></p>`);
 			});
 		});
 
