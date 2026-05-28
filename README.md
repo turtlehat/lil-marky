@@ -96,9 +96,13 @@ Multiple link formats including auto-linking:
 <https://example.com>
 <email@example.com>
 [Email with text](mailto:email@example.com?subject=Hello)
+[Wiki](<https://en.wikipedia.org/wiki/Foo_(bar)>)
+https://example.com
 ```
 
-Auto-linking can be enabled with `marky.create({ autoLink: true })`.
+URLs containing parentheses can be wrapped in angle brackets — `[text](<url>)` — so the parens don't confuse the parser. Inside `<...>` the same `http(s)://` / `mailto:` scheme allowlist applies. Autolinks (`<url>` and bare `http://url`) also accept parens directly.
+
+Bare URLs in prose (the last form above) are off by default to avoid surprising matches; opt in with `marky.create({ autoLink: true })`. The `<url>` and `<email>` forms always work.
 
 ### 🖼️ Images
 Standard markdown image syntax:
@@ -106,6 +110,7 @@ Standard markdown image syntax:
 ```markdown
 ![Alt text](image.jpg)
 ![Alt text](image.jpg "Image title")
+![Alt text](<image_(v2).jpg> "URLs with parens")
 ```
 
 ### 💻 Code
