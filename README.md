@@ -1,15 +1,15 @@
 # lil-marky
 
-A lightweight, fast Markdown parser for JavaScript that converts Markdown text into an Abstract Syntax Tree (AST) with built-in HTML and plain text renderers.
+A lightweight, fast, CommonMark-compliant Markdown parser for JavaScript that converts Markdown text into an Abstract Syntax Tree (AST) with built-in HTML and plain text renderers.
 
 ## 🎯 Features
 
-- 🪶 **Lightweight**: Minimal dependencies, focused on core Markdown parsing
-- ⚡ **Fast**: Two-stage parsing (block → inline) for optimal performance
-- 🔧 **Extensible**: Schema-driven architecture allows custom element definitions
-- 🎨 **Flexible Rendering**: Built-in HTML and plain text renderers with customization options
-- 📦 **Dual Module Support**: Works with both CommonJS and ES modules
-- ✅ **Comprehensive**: Supports all standard Markdown elements plus common extensions
+- ✅ **CommonMark compliant**: Passes all 652 CommonMark spec tests, byte-for-byte
+- ⚡ **Fast**: Two-stage parsing (block → inline) — 2x faster than lil-marky 1.x while doing far more
+- 🛡️ **Safe by default**: Rendered links and images only carry whitelisted URL schemes
+- 🪶 **Lightweight**: Zero runtime dependencies
+- 🎨 **Flexible rendering**: Built-in HTML and plain text renderers, per-element overrides, or bring your own
+- 📦 **Dual module support**: Works with both CommonJS and ES modules
 
 ## 📥 Installation
 
@@ -21,6 +21,7 @@ npm install lil-marky
 
 ```javascript
 const marky = require('lil-marky');
+// or: import { create, html, plain } from 'lil-marky';
 
 // Create a parser instance
 const md = marky.create();
@@ -29,32 +30,91 @@ const md = marky.create();
 const ast = md.parse('# Hello *world*!');
 
 // Parse and render to HTML
-const html = md.parse('# Hello *world*!', marky.html());
-// Output: <h1>Hello <em>world</em>!</h1>
+const htmlOut = md.parse('# Hello *world*!', marky.html());
+// <h1>Hello <em>world</em>!</h1>
 
 // Parse and render to plain text
-const text = md.parse('# Hello *world*!', marky.plain());
-// Output: Hello world!
+const textOut = md.parse('# Hello *world*!', marky.plain());
+// Hello world!
 ```
 
-## 🎪 ES Module Usage
+## ⚙️ Parser Options
 
 ```javascript
-import marky from './esm/lil-marky.js';
-
-const md = marky.create();
-const result = md.parse('**Bold text**', marky.html());
+const md = marky.create({
+	features: {                  // switch individual constructs on or off
+		heading: true, hrule: true, blockQuote: true, list: true,
+		code: true, html: true, emphasis: true, link: true,
+		escape: true, autolink: true, extStrikethrough: true,
+		extLinkify: false,       // linkify bare URLs in prose
+	},
+});
 ```
+
+Every feature defaults on except bare-URL linkifying (`extLinkify`).
+
+## 🖨️ Renderers
+
+### HTML
+
+```javascript
+marky.html({
+	pretty: false,       // newlines between blocks (CommonMark's canonical layout)
+	breaks: false,       // render soft line breaks as <br> (1.x default behavior)
+	xhtml: false,        // <br /> and <hr /> instead of <br> and <hr>
+	linkTarget: null,    // target attribute for links, e.g. '_blank'
+	entities: null,      // replacement entity map ({ amp: '&', lt: '<', ... })
+	element: null,       // per-element render overrides — see below
+	unsafeLinks: false,  // disable the URL scheme whitelist
+})
+```
+
+### Plain text
+
+```javascript
+marky.plain({
+	entities: null,      // replacement entity map
+	element: null,       // per-element render overrides
+})
+```
+
+## 🛡️ Safe Links
+
+By default the HTML renderer only emits `href` and `src` values whose scheme is one of `http`, `https`, `ftp`, `mailto`, `tel`, or `sms` (relative URLs always pass). Anything else — `javascript:`, made-up schemes, entity-smuggled schemes — renders as an empty attribute:
+
+```javascript
+md.parse('[click](javascript:alert(1))', marky.html());
+// <p><a href="">click</a></p>
+```
+
+If you sanitize downstream and want spec behavior instead, opt out with `marky.html({ unsafeLinks: true })`.
+
+## 🎭 Custom Element Rendering
+
+Override how any element renders while keeping the parser and the rest of the output:
+
+```javascript
+const render = marky.html({
+	element: {
+		// (props, inner, depth) => string, or undefined to fall through to the default
+		heading: (props, inner) => `<h${props.level + 1}>${inner}</h${props.level + 1}>`,
+	},
+});
+
+md.parse('# Hi', render);
+// <h2>Hi</h2>
+```
+
+`inner` is the node's children already rendered by this renderer, `depth` is the node's ancestor count, and returning `undefined` declines to the built-in output — children are rendered once either way.
 
 ## 📝 Supported Markdown Elements
 
 ### 📰 Headings
-Supports ATX-style (`# H1` through `###### H6`) and Setext-style headings:
+ATX-style (`# H1` through `###### H6`) and Setext-style headings:
 
 ```markdown
 # Heading 1
 ## Heading 2
-### Heading 3
 
 Alt Heading 1
 =============
@@ -64,7 +124,6 @@ Alt Heading 2
 ```
 
 ### 💪 Emphasis
-Multiple emphasis styles for text formatting:
 
 ```markdown
 *italic* or _italic_
@@ -74,122 +133,125 @@ Multiple emphasis styles for text formatting:
 ```
 
 ### 📋 Lists
-Unordered and ordered lists with full nesting support:
+Unordered and ordered lists with full nesting, tight and loose forms:
 
 ```markdown
 - Item 1
 - Item 2
   - Nested item
-  - Another nested item
 
 1. First item
 2. Second item
-3. Third item
 ```
 
 ### 🔗 Links
-Multiple link formats including auto-linking:
 
 ```markdown
 [Link text](https://example.com)
 [Link with title](https://example.com "Title")
+[Reference link][ref]
+[Collapsed reference][]
 <https://example.com>
 <email@example.com>
-[Email with text](mailto:email@example.com?subject=Hello)
 [Wiki](<https://en.wikipedia.org/wiki/Foo_(bar)>)
 https://example.com
+
+[ref]: https://example.com "Optional title"
 ```
 
-URLs containing parentheses can be wrapped in angle brackets — `[text](<url>)` — so the parens don't confuse the parser. Inside `<...>` the same `http(s)://` / `mailto:` scheme allowlist applies. Autolinks (`<url>` and bare `http://url`) also accept parens directly.
-
-Bare URLs in prose (the last form above) are off by default to avoid surprising matches; opt in with `marky.create({ autoLink: true })`. The `<url>` and `<email>` forms always work.
+URLs containing parentheses can be wrapped in angle brackets — `[text](<url>)` — or written bare when balanced. Bare URLs in prose (the last form) are off by default; opt in with `marky.create({ features: { extLinkify: true } })` — balanced parens in bare URLs (wiki links) are handled.
 
 ### 🖼️ Images
-Standard markdown image syntax:
 
 ```markdown
 ![Alt text](image.jpg)
 ![Alt text](image.jpg "Image title")
-![Alt text](<image_(v2).jpg> "URLs with parens")
 ```
 
 ### 💻 Code
-Inline code and fenced code blocks with optional syntax highlighting:
+Inline code, fenced code blocks with info strings, and indented code blocks:
 
-```markdown
+````markdown
 Inline `code` in text
 
 ```javascript
-// Fenced code block
 const x = 42;
 ```
-```
+
+    indented code block
+````
 
 ### 💬 Blockquotes
-Blockquotes with nesting support:
 
 ```markdown
 > Single quote
->
-> Multiple paragraphs
-
-> Outer quote
 >> Nested quote
 ```
 
 ### ➖ Horizontal Rules
-Create horizontal rules with:
 
 ```markdown
 ---
+***
 ___
 ```
 
 ### ↩️ Line Breaks
-Manual line breaks and paragraph separation:
 
 ```markdown
-Line 1
-Line 2 (two spaces at end of line 1)
-
-Paragraph 1
+Line 1␠␠
+Line 2 (two trailing spaces = hard break)
 
 Paragraph 2 (blank line separates paragraphs)
 ```
 
-## 🎨 Custom Renderers
+Soft breaks (a plain newline) stay newlines per CommonMark; pass `breaks: true` to the HTML renderer to turn them into `<br>`.
 
-You can create custom renderers that receive the AST:
-
-```javascript
-function customRenderer(nodes) {
-  // Process AST nodes and return custom output
-  return processNodes(nodes);
-}
-
-const result = md.parse(text, customRenderer);
-```
+### 🧱 Raw HTML
+Inline HTML tags and HTML blocks pass through untouched.
 
 ## 🌳 AST Structure
 
-The parser generates a hierarchical AST with nodes containing:
-
-- `type`: Element type (heading, paragraph, bold, etc.)
-- `props`: Element properties (level, url, etc.) 
-- `children`: Child nodes for container elements
+Every node is `{ type, props, children }` — nothing else:
 
 ```javascript
-// Example AST for "# Hello *world*!"
+// md.parse('# Hello *world*!')
 [{
-  type: 'heading',
-  props: { level: 1 },
-  children: [
-    { type: 'text', props: { value: 'Hello ' } },
-    { 
-      type: 'italic',
-      children: [{ type: 'text', props: { value: 'world' } }]
-    },
-    { type: 'text', props: { value: '!' } }
-  ]
+	type: 'heading',
+	props: { level: 1 },
+	children: [
+		{ type: 'text', props: { value: 'Hello ' }, children: [] },
+		{
+			type: 'italic',
+			props: {},
+			children: [{ type: 'text', props: { value: 'world' }, children: [] }]
+		},
+		{ type: 'text', props: { value: '!' }, children: [] }
+	]
 }]
 ```
+
+Any function can be a renderer — it receives the AST and returns whatever it likes:
+
+```javascript
+const wordCount = md.parse(text, (nodes) => countWords(nodes));
+```
+
+## ⬆️ Upgrading from 1.x
+
+2.0 is a ground-up rewrite for full CommonMark compliance. Two settings restore the 1.x defaults that changed:
+
+```javascript
+const md = marky.create({ features: { extLinkify: true } });  // 1.x linkified bare URLs by default
+const render = marky.html({ breaks: true });                  // 1.x rendered every newline as <br>
+```
+
+Everything else 2.0 does differently is added compliance, with no switch and no need for one:
+
+- **New syntax**: reference links, collapsed references, indented code blocks, loose lists, and proper tab handling all work now. The most visible in old content: text indented four spaces becomes a code block, as the spec requires.
+- **Link schemes**: 1.x only linkified `http(s)`/`mailto`. 2.0 parses any scheme and instead guards at render time with the safe-link whitelist above.
+- **Output details**: attribute values are fully escaped (`&` → `&amp;`, `"` → `&quot;`), `***x***` nests as `<em><strong>` per spec, and a single `-` under text is a valid Setext heading.
+
+## 📄 License
+
+MIT. Portions of the inline parsing core are adapted from [commonmark.js](https://github.com/commonmark/commonmark.js) (BSD-2-Clause) — see [LICENSE](LICENSE).

@@ -1,4 +1,4 @@
-const marky = require('../src/lil-marky.js');
+const marky = require('../dist/lil-marky.cjs');
 
 // Markdown building blocks for generating random documents
 const inlineFragments = [
@@ -148,40 +148,50 @@ function runWithTimeout(fn, label) {
 	return { ok: true, elapsed, label, result };
 }
 
+// Parsers and renderers are built once and reused across every input, so a
+// state leak between documents shows up here as a crash or a wrong-looking hang.
+const md = marky.create();
+const mdLinkify = marky.create({ features: { extLinkify: true } });
+const toHtml = marky.html();
+const toHtmlPretty = marky.html({ pretty: true });
+const toPlain = marky.plain();
+
+const modes = [
+	['parse',       (text) => md.parse(text)],
+	['html',        (text) => md.parse(text, toHtml)],
+	['html-pretty', (text) => md.parse(text, toHtmlPretty)],
+	['plain',       (text) => md.parse(text, toPlain)],
+	['linkify',     (text) => mdLinkify.parse(text, toHtml)],
+];
+
 function testInput(text, label) {
-	const md = marky.create();
-	const mdAutoLink = marky.create({ autoLink: true });
-	const htmlRenderer = marky.html();
-	const htmlPrettyRenderer = marky.html({ pretty: true });
-	const plainRenderer = marky.plain();
 	const issues = [];
 
-	// Test parse (AST only)
-	const r1 = runWithTimeout(() => md.parse(text), `${label} parse`);
-	if (r1.error) issues.push({ type: 'crash', ...r1 });
-	if (r1.slow) issues.push({ type: 'slow', ...r1 });
+	for (const [mode, run] of modes) {
+		const result = runWithTimeout(() => run(text), `${label} ${mode}`);
 
-	// Test HTML render
-	const r2 = runWithTimeout(() => md.parse(text, htmlRenderer), `${label} html`);
-	if (r2.error) issues.push({ type: 'crash', ...r2 });
-	if (r2.slow) issues.push({ type: 'slow', ...r2 });
+		if (result.error)
+			issues.push({ type: 'crash', ...result });
 
-	// Test HTML pretty render
-	const r3 = runWithTimeout(() => md.parse(text, htmlPrettyRenderer), `${label} html-pretty`);
-	if (r3.error) issues.push({ type: 'crash', ...r3 });
-	if (r3.slow) issues.push({ type: 'slow', ...r3 });
-
-	// Test plain render
-	const r4 = runWithTimeout(() => md.parse(text, plainRenderer), `${label} plain`);
-	if (r4.error) issues.push({ type: 'crash', ...r4 });
-	if (r4.slow) issues.push({ type: 'slow', ...r4 });
-
-	// Test autoLink mode
-	const r6 = runWithTimeout(() => mdAutoLink.parse(text, htmlRenderer), `${label} autoLink`);
-	if (r6.error) issues.push({ type: 'crash', ...r6 });
-	if (r6.slow) issues.push({ type: 'slow', ...r6 });
+		if (result.slow)
+			issues.push({ type: 'slow', ...result });
+	}
 
 	return issues;
+}
+
+function reportIssues(issues, input) {
+	const tail = input === undefined ? '' : `\n    Input: ${JSON.stringify(input).slice(0, 100)}`;
+
+	for (const issue of issues) {
+		if (issue.type === 'crash') {
+			console.log(`  CRASH: ${issue.label} - ${issue.error.message}${tail}`);
+		} else {
+			console.log(`  SLOW:  ${issue.label} (${issue.elapsed.toFixed(0)}ms)${tail}`);
+		}
+	}
+
+	return issues.length;
 }
 
 // Run the fuzz test
@@ -191,34 +201,17 @@ let tested = 0;
 
 console.log('Running edge cases...');
 for (const text of edgeCases()) {
-	const issues = testInput(text, `edge[${JSON.stringify(text).slice(0, 40)}]`);
 	tested++;
-	for (const issue of issues) {
-		totalIssues++;
-		if (issue.type === 'crash')
-			console.log(`  CRASH: ${issue.label} - ${issue.error.message}`);
-		else if (issue.type === 'slow')
-			console.log(`  SLOW:  ${issue.label} (${issue.elapsed.toFixed(0)}ms)`);
-		else if (issue.type === 'mismatch')
-			console.log(`  MISMATCH: ${issue.label}`);
-	}
+	totalIssues += reportIssues(testInput(text, `edge[${JSON.stringify(text).slice(0, 40)}]`));
 }
 console.log(`  ${tested} edge cases tested\n`);
 
 console.log(`Running ${RANDOM_COUNT} random documents...`);
 for (let i = 0; i < RANDOM_COUNT; i++) {
 	const text = generateDocument();
-	const issues = testInput(text, `rand[${i}]`);
+
 	tested++;
-	for (const issue of issues) {
-		totalIssues++;
-		if (issue.type === 'crash')
-			console.log(`  CRASH: ${issue.label} - ${issue.error.message}\n    Input: ${JSON.stringify(text).slice(0, 100)}`);
-		else if (issue.type === 'slow')
-			console.log(`  SLOW:  ${issue.label} (${issue.elapsed.toFixed(0)}ms)\n    Input: ${JSON.stringify(text).slice(0, 100)}`);
-		else if (issue.type === 'mismatch')
-			console.log(`  MISMATCH: ${issue.label}\n    Input: ${JSON.stringify(text).slice(0, 100)}`);
-	}
+	totalIssues += reportIssues(testInput(text, `rand[${i}]`), text);
 }
 
 console.log(`\nDone. ${tested} inputs tested, ${totalIssues} issues found.`);

@@ -24,8 +24,16 @@ function createBlockCursor() {
 		indented: false,
 		restIsBlank: false,
 		reset(text) {
-			this.doc = text.replace(reNul, '�').replace(reBareCr, '\n');
-			this.docLength = this.doc.length;
+			// Both are no-ops on most documents, and indexOf finds that out far more
+			// cheaply than a whole-document regex sweep that matches nothing.
+			if (text.indexOf('\0') !== -1)
+				text = text.replace(reNul, '�');
+
+			if (text.indexOf('\r') !== -1)
+				text = text.replace(reBareCr, '\n');
+
+			this.doc = text;
+			this.docLength = text.length;
 			this.lineEnd = -1;
 			this.lineNumber = 0;
 		},

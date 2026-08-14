@@ -167,8 +167,18 @@ for (const scheme of ['http', 'https', 'ftp', 'mailto', 'tel', 'sms']) {
 	allowedProtocols[scheme] = true;
 }
 
-// The gate checks the DECODED url — no entity smuggling. Lone surrogates become
-// U+FFFD first: encodeURI throws on them, and a raw segment could close the attribute.
+// Lone surrogates become U+FFFD: a raw half could close the attribute. encodeURI
+// throws on exactly and only those, so the sweep runs on the failure path rather
+// than over every url — it measured 2.4% of profile as a per-href pre-scan.
+function encodeSegment(text) {
+	try {
+		return encodeURI(text);
+	} catch {
+		return encodeURI(text.replace(loneSurrogateRegex, '\uFFFD'));
+	}
+}
+
+// The gate checks the DECODED url — no entity smuggling.
 function encodeHref(url, entities, unsafeLinks) {
 	const decoded = decodeEntities(url, entities);
 
@@ -179,11 +189,11 @@ function encodeHref(url, entities, unsafeLinks) {
 			return '';
 	}
 
-	const parts = decoded.replace(loneSurrogateRegex, '\uFFFD').split(existingTripletRegex);
+	const parts = decoded.split(existingTripletRegex);
 	let encoded = '';
 
 	for (let i = 0; i < parts.length; i++) {
-		encoded += i % 2 === 1 ? parts[i].toUpperCase() : encodeURI(parts[i]);
+		encoded += i % 2 === 1 ? parts[i].toUpperCase() : encodeSegment(parts[i]);
 	}
 
 	return encoded.indexOf('&') === -1 ? encoded : encoded.replace(/&/g, '&amp;');

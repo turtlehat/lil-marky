@@ -1,4 +1,5 @@
 import { defaultEntities, decodeEntities } from './escapes.mjs';
+import { newlineCode } from './chars.mjs';
 
 export function plain(options = {}) {
 	const elements = options.element;
@@ -39,7 +40,7 @@ export function plain(options = {}) {
 			case 'code_block':
 				// Only the trailing newlines go: leading whitespace is the indentation
 				// of the first line and is part of the code.
-				return `${innerText.replace(reTrailingNewlines, '')}\n\n`;
+				return `${trimNewlines(innerText, false)}\n\n`;
 			case 'list':
 				return inList ? `\n${innerText}` : `${innerText}\n\n`;
 			case 'list_item': {
@@ -55,7 +56,7 @@ export function plain(options = {}) {
 
 				// Later lines indent under the item. Edges lose NEWLINES only (leading
 				// code keeps its indentation); blank lines stay bare.
-				return `${marker} ${innerText.replace(reEdgeNewlines, '').replace(reContentNewline, '\n  ')}`;
+				return `${marker} ${trimNewlines(innerText, true).replace(reContentNewline, '\n  ')}`;
 			}
 			case 'block_quote':
 			case 'bold':
@@ -113,12 +114,30 @@ export function plain(options = {}) {
 
 		// Only blank lines are trimmed from the document edges. A plain .trim() would
 		// also eat the indentation of a code block that opens or closes the document.
-		return depth === 0 ? text.replace(reEdgeNewlines, '') : text;
+		return depth === 0 ? trimNewlines(text, true) : text;
 	}
 
 	return (nodes) => render(nodes, 0);
 }
 
-const reTrailingNewlines = /\n+$/;
 const reContentNewline = /\n(?=[^\n])/g;
-const reEdgeNewlines = /^\n+|\n+$/g;
+
+// Anchored trims: /\n+$/ has to attempt a match at every position, which is
+// O(text) per list item where walking the ends is O(newlines trimmed).
+function trimNewlines(text, leading) {
+	const end = text.length;
+	let start = 0;
+	let stop = end;
+
+	if (leading) {
+		while (start < stop && text.charCodeAt(start) === newlineCode) {
+			start++;
+		}
+	}
+
+	while (stop > start && text.charCodeAt(stop - 1) === newlineCode) {
+		stop--;
+	}
+
+	return start === 0 && stop === end ? text : text.slice(start, stop);
+}

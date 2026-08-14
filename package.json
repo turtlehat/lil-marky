@@ -1,32 +1,58 @@
 {
-    "name": "lil-marky",
-    "version": "1.2.1",
-    "main": "./src/lil-marky.js",
-    "files": [
-        "src/lil-marky.js",
-        "esm/lil-marky.js"
-    ],
-    "exports": {
-        "require": "./src/lil-marky.js",
-        "import": "./esm/lil-marky.js"
-    },
-    "scripts": {
-        "test": "mocha test/lilMarkyTest.js"
-    },
-    "keywords": [
-        "markdown",
-        "parser",
-        "ast",
-        "lightweight",
-        "zero-dependencies",
-        "esm",
-        "commonjs"
-    ],
-    "author": "Doug Mcleod <doug@dougmcleod.ca>",
-    "license": "MIT",
-    "devDependencies": {
-        "chai": "^6.2.2",
-        "cjstoesm": "^3.0.0",
-        "mocha": "^11.7.5"
-    }
+	"name": "lil-marky",
+	"version": "2.0.0",
+	"description": "Lightweight CommonMark parser: markdown to AST, with HTML and plain text renderers and no runtime dependencies",
+	"author": "Doug Mcleod <doug@dougmcleod.ca>",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/turtlehat/lil-marky.git"
+	},
+	"homepage": "https://github.com/turtlehat/lil-marky#readme",
+	"bugs": "https://github.com/turtlehat/lil-marky/issues",
+	"keywords": [
+		"markdown",
+		"commonmark",
+		"parser",
+		"ast",
+		"html",
+		"lightweight",
+		"zero-dependencies",
+		"esm",
+		"commonjs"
+	],
+	"scripts": {
+		"build": "node build.mjs",
+		"test": "npm run build && mocha test/unit test/commonmark.test.js",
+		"test:unit": "npm run build && mocha test/unit",
+		"test:commonmark": "npm run build && mocha test/commonmark.test.js",
+		"fuzz": "npm run build && node test/fuzz.js",
+		"perf": "npm run build && node test/perf.js",
+		"perf:repeat": "node test/repeat.mjs 5 test/perf.js",
+		"benchmark": "npm run build && node test/benchmark.js",
+		"benchmark:repeat": "node test/repeat.mjs 5 test/benchmark.js",
+		"prepublishOnly": "npm run build"
+	},
+	"main": "./dist/lil-marky.cjs",
+	"files": [
+		"dist/lil-marky.cjs",
+		"dist/lil-marky.mjs"
+	],
+	"exports": {
+		"require": "./dist/lil-marky.cjs",
+		"import": "./dist/lil-marky.mjs"
+	},
+	"sideEffects": false,
+	"devDependencies": {
+		"esbuild": "^0.28.0",
+		"mocha": "^11.7.5",
+		"chai": "^6.2.2",
+		"character-entities": "^2.0.2",
+		"commonmark-spec": "^0.31.2",
+		"commonmark": "^0.31.2",
+		"markdown-it": "^15.0.0",
+		"marked": "^18.0.9",
+		"micromark": "^4.0.2",
+		"remarkable": "^2.0.1"
+	}
 }
