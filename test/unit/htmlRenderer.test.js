@@ -252,6 +252,24 @@ describe('element overrides', () => {
 			.to.equal('<p><a href="http://example.com">View Page</a></p>');
 	});
 
+	it('will hand a code override the source, not escaped html', () => {
+		const seen = [];
+		const spy = html({ element: {
+			code: (props, inner) => { seen.push(inner); return ''; },
+			code_block: (props, inner) => { seen.push(inner); return ''; },
+		} });
+
+		marky.parse('`{"a": "b"}`\n\n```json\n{"c": 1}\n```', spy);
+		expect(seen).to.deep.equal(['{"a": "b"}', '{"c": 1}\n']);
+	});
+
+	it('will still escape code when the override declines', () => {
+		const declining = html({ element: { code: () => undefined, code_block: () => undefined } });
+
+		expect(marky.parse('`<b>&`', declining)).to.equal('<p><code>&lt;b&gt;&amp;</code></p>');
+		expect(marky.parse('```\n<b>&\n```', declining)).to.equal('<pre><code>&lt;b&gt;&amp;\n</code></pre>');
+	});
+
 	it('will carry the info string as the code_block syntax prop', () => {
 		const render = html({ element: {
 			code_block: (props, inner) => {

@@ -78,8 +78,12 @@ export function html(options = {}) {
 				continue;
 			}
 
-			// Rendered once; the decline path reuses it, never re-walking.
-			const overrideInner = override ? render(node.children, childDepth) : undefined;
+			// Rendered once; the decline path reuses it, never re-walking. Code is the
+			// exception: an override wants source, so its decline path escapes late.
+			const isCode = type === 'code' || type === 'code_block';
+			const overrideInner = override
+				? (isCode ? codeText(node.children) : render(node.children, childDepth))
+				: undefined;
 
 			if (override) {
 				const overrideText = override(props, overrideInner, depth);
@@ -123,7 +127,7 @@ export function html(options = {}) {
 					text += `<a href="${encodeHref(props.url, entityChars, unsafeLinks)}"${attrs}${targetAttr}>${overrideInner ?? render(node.children, childDepth)}</a>`;
 				} break;
 				case 'code':
-					text += `<code>${overrideInner ?? render(node.children, childDepth)}</code>`;
+					text += `<code>${override ? escapeHtml(overrideInner) : render(node.children, childDepth)}</code>`;
 					break;
 				case 'line_break':
 					text += (props.hard || breaks) ? br : '\n';
@@ -152,7 +156,7 @@ export function html(options = {}) {
 				case 'code_block': {
 					const syntax = props.syntax;
 					const cls = syntax ? ` class="language-${decodeAndEscapeHtml(syntax, entityChars)}"` : '';
-					text += `<pre><code${cls}>${overrideInner ?? render(node.children, childDepth)}${cbClose}`;
+					text += `<pre><code${cls}>${override ? escapeHtml(overrideInner) : render(node.children, childDepth)}${cbClose}`;
 				} break;
 				case 'hrule':
 					text += hr;
@@ -180,4 +184,14 @@ export function html(options = {}) {
 	}
 
 	return (nodes) => render(nodes, 0);
+}
+
+function codeText(nodes) {
+	let text = '';
+
+	for (const node of nodes) {
+		text += node.props.value;
+	}
+
+	return text;
 }
