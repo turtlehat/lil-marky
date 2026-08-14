@@ -4,9 +4,8 @@ import { createRefDefs } from './refDefs.mjs';
 import { blockSchemas } from './blockSchemas.mjs';
 import { inlineSchemas } from './inlineSchemas.mjs';
 import { createInlineKernel } from './inlineKernel.mjs';
-
-export { html } from './htmlRenderer.mjs';
-export { plain } from './plainRenderer.mjs';
+import { html } from './htmlRenderer.mjs';
+import { plain } from './plainRenderer.mjs';
 
 // Every feature defaults on except extLinkify.
 function resolveStage(schemas, features) {
@@ -24,7 +23,7 @@ function resolveStage(schemas, features) {
 	return resolved;
 }
 
-export function create(options = {}) {
+function create(options = {}) {
 	if (options.schemas)
 		throw new Error('options.schemas is not supported in 2.0');
 
@@ -111,3 +110,6 @@ function collect(into, type, props, nodes, unwrap) {
 		into.push(node);
 	}
 }
+
+export { create, html, plain };
+export default { create, html, plain };

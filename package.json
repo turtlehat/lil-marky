@@ -1,6 +1,6 @@
 {
 	"name": "lil-marky",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"description": "Lightweight CommonMark parser: markdown to AST, with HTML and plain text renderers and no runtime dependencies",
 	"author": "Doug Mcleod <doug@dougmcleod.ca>",
 	"license": "MIT",
