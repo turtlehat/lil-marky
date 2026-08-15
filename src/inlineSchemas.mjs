@@ -183,7 +183,7 @@ const ext_linkify = createInlineSchema({
 	wrapText: {
 		find: reLinkifyUrl,
 		precheck: 'http',
-		skip: 'link',
+		skip: ['link', 'code'],
 		wrap: { node: 'link', props: { url: '$0' }, childText: '$0' },
 	},
 });

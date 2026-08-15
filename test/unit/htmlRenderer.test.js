@@ -263,6 +263,19 @@ describe('element overrides', () => {
 		expect(seen).to.deep.equal(['{"a": "b"}', '{"c": 1}\n']);
 	});
 
+	// The end of the chain that broke cards: linkify made a link node inside the
+	// span, and reading only props.value off it spliced "undefined" into the json.
+	it('will hand a code override parseable source with linkify on', () => {
+		const linkify = create({ features: { extLinkify: true } });
+		const source = '{"images":["https://a.co/b.jpg?w=1&h=2"]}';
+		let seen;
+		const spy = html({ element: { code: (props, inner) => { seen = inner; return ''; } } });
+
+		linkify.parse('`' + source + '`', spy);
+		expect(seen).to.equal(source);
+		expect(() => JSON.parse(seen)).to.not.throw();
+	});
+
 	it('will still escape code when the override declines', () => {
 		const declining = html({ element: { code: () => undefined, code_block: () => undefined } });
 

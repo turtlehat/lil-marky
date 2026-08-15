@@ -618,7 +618,7 @@ function normalizeWrapText(w) {
 	return {
 		find: w.find,
 		precheck: w.precheck ?? null,
-		skip: w.skip ?? null,
+		skip: new Set(w.skip ?? []),
 		node: w.wrap.node,
 		props: normalizeProps(w.wrap.props ?? {}),
 		childText: w.wrap.childText !== undefined ? normalizeTemplate('value', w.wrap.childText) : null,
@@ -791,7 +791,7 @@ function interpretWrapText(w, nodes) {
 		const node = nodes[i];
 
 		if (node.type !== 'text') {
-			if (node.type !== w.skip && node.children.length)
+			if (!w.skip.has(node.type) && node.children.length)
 				interpretWrapText(w, node.children);
 
 			if (out)

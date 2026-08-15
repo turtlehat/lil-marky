@@ -186,11 +186,12 @@ export function html(options = {}) {
 	return (nodes) => render(nodes, 0);
 }
 
+// Flattens to source text: a child without a value carries it in its own children.
 function codeText(nodes) {
 	let text = '';
 
 	for (const node of nodes) {
-		text += node.props.value;
+		text += node.props.value ?? codeText(node.children);
 	}
 
 	return text;

@@ -269,8 +269,14 @@ describe('linkify', () => {
 			.to.equal('<p>see <a href="https://a.co/x">https://a.co/x</a>.</p>');
 	});
 
-	it('will linkify inside code spans', () => {
-		expect(render('`see https://x.com`')).to.contain('<a href="https://x.com"');
+	// 1.x did not, and neither does GFM's autolink extension: code is verbatim.
+	it('will not linkify inside a code span', () => {
+		expect(render('`see https://x.com`')).to.equal('<p><code>see https://x.com</code></p>');
+		expect(render('```\nhttps://x.com\n```')).to.equal('<pre><code>https://x.com\n</code></pre>');
+	});
+
+	it('will not linkify inside an existing link', () => {
+		expect(render('[text](https://a.co)')).to.equal('<p><a href="https://a.co">text</a></p>');
 	});
 });
 
