@@ -63,7 +63,7 @@ marky.html({
 	breaks: false,       // render soft line breaks as <br> (1.x default behavior)
 	xhtml: false,        // <br /> and <hr /> instead of <br> and <hr>
 	linkTarget: null,    // target attribute for links, e.g. '_blank'
-	entities: null,      // replacement entity map ({ amp: '&', lt: '<', ... })
+	entities: null,      // replace the built-in entity table (see Entities below)
 	element: null,       // per-element render overrides — see below
 	unsafeLinks: false,  // disable the URL scheme whitelist
 })
@@ -73,7 +73,7 @@ marky.html({
 
 ```javascript
 marky.plain({
-	entities: null,      // replacement entity map
+	entities: null,      // replace the built-in entity table (see Entities below)
 	element: null,       // per-element render overrides
 })
 ```
@@ -88,6 +88,26 @@ md.parse('[click](javascript:alert(1))', marky.html());
 ```
 
 If you sanitize downstream and want spec behavior instead, opt out with `marky.html({ unsafeLinks: true })`.
+
+## 🔣 Entities
+
+The built-in table covers the ~150 references people actually type — `&copy;` `&mdash;` `&nbsp;` `&eacute;` `&frac12;` and friends — plus every numeric reference. Anything else stays literal text:
+
+```javascript
+md.parse('&copy; 2026 &mdash; caf&eacute;', marky.html());
+// <p>© 2026 — café</p>
+```
+
+The full HTML5 set is 2125 names and 35KB minified — larger than this whole library — so it is opt-in. Pass any `{ name: character }` map; [character-entities](https://www.npmjs.com/package/character-entities) ships the complete one:
+
+```bash
+npm install character-entities
+```
+
+```javascript
+const { characterEntities } = require('character-entities');
+const render = marky.html({ entities: characterEntities });
+```
 
 ## 🎭 Custom Element Rendering
 
@@ -106,6 +126,19 @@ md.parse('# Hi', render);
 ```
 
 `inner` is the node's children already rendered by this renderer, `depth` is the node's ancestor count, and returning `undefined` declines to the built-in output — children are rendered once either way.
+
+`code` and `code_block` are the exception: their `inner` is the source text, unescaped, so an override can parse it. Both renderers pass the same string, and declining still escapes it for you:
+
+```javascript
+const render = marky.html({
+	element: {
+		code_block: (props, inner) => {
+			if (props.syntax === 'chart')
+				return renderChart(JSON.parse(inner));
+		},
+	},
+});
+```
 
 ## 📝 Supported Markdown Elements
 
@@ -239,18 +272,30 @@ const wordCount = md.parse(text, (nodes) => countWords(nodes));
 
 ## ⬆️ Upgrading from 1.x
 
-2.0 is a ground-up rewrite for full CommonMark compliance. Two settings restore the 1.x defaults that changed:
+2.x is a ground-up rewrite for full CommonMark compliance. Two settings restore the 1.x defaults that changed:
 
 ```javascript
 const md = marky.create({ features: { extLinkify: true } });  // 1.x linkified bare URLs by default
 const render = marky.html({ breaks: true });                  // 1.x rendered every newline as <br>
 ```
 
-Everything else 2.0 does differently is added compliance, with no switch and no need for one:
+Everything else 2.x does differently is added compliance, with no switch and no need for one:
 
 - **New syntax**: reference links, collapsed references, indented code blocks, loose lists, and proper tab handling all work now. The most visible in old content: text indented four spaces becomes a code block, as the spec requires.
-- **Link schemes**: 1.x only linkified `http(s)`/`mailto`. 2.0 parses any scheme and instead guards at render time with the safe-link whitelist above.
+- **Link schemes**: 1.x only linkified `http(s)`/`mailto`. 2.x parses any scheme and instead guards at render time with the safe-link whitelist above.
 - **Output details**: attribute values are fully escaped (`&` → `&amp;`, `"` → `&quot;`), `***x***` nests as `<em><strong>` per spec, and a single `-` under text is a valid Setext heading.
+- **Entities**: 1.x left every entity as literal text and double-escaped `&amp;`. 2.x decodes the common ones and all numeric references — see [Entities](#-entities).
+
+### New node types
+
+1.x had no HTML support — raw tags were escaped and appeared as ordinary text nodes. 2.x parses them, so an AST walker or an `element` override sees two types that did not exist before. Both carry their markup on `props.value` and have no children:
+
+```javascript
+{ type: 'html_inline', props: { value: '<b>' },              children: [] }
+{ type: 'html_block',  props: { value: '<div>\nx\n</div>' }, children: [] }
+```
+
+Text nodes inside `code` and `code_block` also carry `props.verbatim: true`, which tells a renderer not to decode entities in them.
 
 ## 📄 License
 

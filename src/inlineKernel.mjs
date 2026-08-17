@@ -336,10 +336,10 @@ function createBuilder(delimiterKinds, openerFloorSlots) {
 	return builder;
 }
 
-// code/isHtml are excluded because renderers branch on them; isEscaped because
-// a merged `\&ouml;` would re-form an entity and decode.
+// verbatim is excluded because renderers branch on it; isEscaped because a
+// merged `\&ouml;` would re-form an entity and decode.
 function isMergeableText(node) {
-	return node.type === 'text' && !node.isEscaped && !node.props.code && !node.props.isHtml;
+	return node.type === 'text' && !node.isEscaped && !node.props.verbatim;
 }
 
 // Past maxNesting frames a wrapper UNWRAPS — children splice up a level;
@@ -421,7 +421,8 @@ function collectText(nodes) {
 
 		const node = frame.nodes[frame.i++];
 
-		if (node.type === 'text') {
+		// Raw html contributes its source: `![a<b>c](/u)` has alt `a<b>c`.
+		if (node.type === 'text' || node.type === 'html_inline') {
 			text += node.props.value;
 		} else if (node.type === 'line_break') {
 			text += '\n';
@@ -745,7 +746,7 @@ function interpretEqualRun(m, cursor, builder, parent, code) {
 
 	const node = createNode(m.node, {});
 
-	append(node, createNode('text', { value: contents, code: true }));
+	append(node, createNode('text', { value: contents, verbatim: true }));
 	append(parent, node);
 	return true;
 }

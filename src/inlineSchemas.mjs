@@ -78,10 +78,11 @@ const autolink = createInlineSchema({
 const html_inline = createInlineSchema({
 	feature: 'html',
 	triggerChar: '<',
-	// Renderers treat a text node with isHtml:true as already-HTML.
+	// Not an element wrapping text — a blob of markup injected verbatim, so the
+	// source is the node's own value and it has no children.
 	match: {
 		rows: [
-			{ re: reHtmlTag, node: 'text', props: { value: '$0', isHtml: true } },
+			{ re: reHtmlTag, node: 'html_inline', props: { value: '$0' } },
 		],
 	},
 });
@@ -183,7 +184,7 @@ const ext_linkify = createInlineSchema({
 	wrapText: {
 		find: reLinkifyUrl,
 		precheck: 'http',
-		skip: ['link', 'code'],
+		skip: ['link', 'code', 'image'],
 		wrap: { node: 'link', props: { url: '$0' }, childText: '$0' },
 	},
 });

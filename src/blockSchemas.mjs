@@ -365,7 +365,7 @@ const fencedCodeBlock = createBlockSchema({
 		const value = newlineIndex === -1 ? '' : content.slice(newlineIndex + 1) + '\n';
 
 		node.props.syntax = rawSyntax ? unescapeBackslash(rawSyntax) : null;
-		node.children = [{ type: 'text', props: { value, code: true }, children: [] }];
+		node.children = [{ type: 'text', props: { value, verbatim: true }, children: [] }];
 	},
 });
 
@@ -385,7 +385,7 @@ const indentedCodeBlock = createBlockSchema({
 		// this cut the blank before a sibling is invisible to list tightness.
 		node.endLine = frame.lastContentLine;
 		node.props.syntax = null;
-		node.children = [{ type: 'text', props: { value, code: true }, children: [] }];
+		node.children = [{ type: 'text', props: { value, verbatim: true }, children: [] }];
 	},
 });
 
@@ -396,7 +396,8 @@ const htmlBlock = createBlockSchema({
 	flags: RAW | LINES | AFTER_LINE,
 	continuation: { kind: UNTIL_CLOSE },
 	finalize(ctx, node) {
-		node.children = [{ type: 'text', props: { value: ctx.text(node), isHtml: true }, children: [] }];
+		node.props.value = ctx.text(node);
+		node.children = [];
 	},
 });
 

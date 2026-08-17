@@ -30,6 +30,13 @@ describe('plain renderer inline', () => {
 		expect(render('&amp; and `&amp;`')).to.equal('& and &amp;');
 	});
 
+	// The whole reason the default table exists: plain text has no browser to
+	// finish the job, so an undecoded entity would ship as literal source.
+	it('will decode the common entities, which only this renderer must do itself', () => {
+		expect(render('&copy; 2026 &mdash; caf&eacute;')).to.equal('© 2026 — café');
+		expect(render('&Eacute;cole &frac12; &deg;')).to.equal('École ½ °');
+	});
+
 	it('will drop raw inline html, keeping the text around it', () => {
 		expect(render('a <span onclick="x()">c</span> b')).to.equal('a c b');
 	});
@@ -193,12 +200,12 @@ describe('plain renderer node coverage', () => {
 		})(marky.parse([
 			'# h', '', 'para *i* **b** ~~s~~ `c`', '', '> q', '', '- a', '  - b', '',
 			'1. one', '', '    code', '', '```js', 'fenced', '```', '', '---', '',
-			'[t](/u)', '<https://a.co>', '![alt](/u)', '<div>raw</div>', '', 'a  ', 'b',
+			'[t](/u)', '<https://a.co>', '![alt](/u)', 'x <b>raw</b> y', '', '<div>raw</div>', '', 'a  ', 'b',
 		].join('\n')));
 
 		const handled = new Set(['text', 'paragraph', 'line_break', 'heading', 'block_quote',
 			'code_block', 'list', 'list_item', 'bold', 'italic', 'strike_through', 'code',
-			'hrule', 'link', 'html_block', 'image']);
+			'hrule', 'link', 'html_block', 'html_inline', 'image']);
 
 		expect([...seen].filter(t => !handled.has(t)), 'unhandled node types').to.deep.equal([]);
 	});

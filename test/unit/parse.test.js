@@ -64,10 +64,26 @@ describe('ast shape', () => {
 		expect(image.props).to.include({ url: '/i', alt: 'b' });
 	});
 
-	it('will mark code text', () => {
-		const [para] = marky.parse('`x`');
+	it('will mark code text verbatim so entities are not decoded', () => {
+		const [para] = marky.parse('`&amp;`');
 
-		expect(para.children[0].children[0].props.code).to.equal(true);
+		expect(para.children[0].children[0].props).to.deep.equal({ value: '&amp;', verbatim: true });
+	});
+
+	it('will give raw html its own node type, carrying its source', () => {
+		const [para] = marky.parse('a <b x="1">c</b>');
+
+		expect(para.children.map(n => n.type)).to.deep.equal(['text', 'html_inline', 'text', 'html_inline']);
+		expect(para.children[1].props).to.deep.equal({ value: '<b x="1">' });
+		expect(para.children[1].children).to.deep.equal([]);
+	});
+
+	it('will carry an html block on the node, not in a child', () => {
+		const [block] = marky.parse('<div class="x">\nbody\n</div>');
+
+		expect(block.type).to.equal('html_block');
+		expect(block.props.value).to.equal('<div class="x">\nbody\n</div>');
+		expect(block.children).to.deep.equal([]);
 	});
 
 	it('will be JSON-serializable', () => {
@@ -614,7 +630,7 @@ describe('empty text nodes', () => {
 		const block = marky.parse('```\n```')[0];
 
 		expect(block.type).to.equal('code_block');
-		expect(block.children[0].props).to.deep.equal({ value: '', code: true });
+		expect(block.children[0].props).to.deep.equal({ value: '', verbatim: true });
 	});
 });
 

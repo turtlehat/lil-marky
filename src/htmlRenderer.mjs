@@ -80,12 +80,13 @@ export function html(options = {}) {
 
 			// Rendered once; the decline path reuses it, never re-walking. Code is the
 			// exception: an override wants source, so its decline path escapes late.
-			const isCode = type === 'code' || type === 'code_block';
-			const overrideInner = override
-				? (isCode ? codeText(node.children) : render(node.children, childDepth))
-				: undefined;
+			let overrideInner;
 
 			if (override) {
+				const isCode = type === 'code' || type === 'code_block';
+
+				overrideInner = isCode ? codeText(node.children) : render(node.children, childDepth);
+
 				const overrideText = override(props, overrideInner, depth);
 
 				if (overrideText !== undefined) {
@@ -100,14 +101,10 @@ export function html(options = {}) {
 
 			switch (type) {
 				case 'text':
-					if (props.isHtml) {
-						text += props.value;
-					} else if (props.code) {
-						text += escapeHtml(props.value);
-					} else {
-						text += decodeAndEscapeHtml(props.value, entityChars);
-					}
-
+					text += props.verbatim ? escapeHtml(props.value) : decodeAndEscapeHtml(props.value, entityChars);
+					break;
+				case 'html_inline':
+					text += props.value;
 					break;
 				case 'paragraph':
 					text += `<p>${overrideInner ?? render(node.children, childDepth)}${pClose}`;
@@ -127,7 +124,7 @@ export function html(options = {}) {
 					text += `<a href="${encodeHref(props.url, entityChars, unsafeLinks)}"${attrs}${targetAttr}>${overrideInner ?? render(node.children, childDepth)}</a>`;
 				} break;
 				case 'code':
-					text += `<code>${override ? escapeHtml(overrideInner) : render(node.children, childDepth)}</code>`;
+					text += `<code>${escapeHtml(overrideInner ?? codeText(node.children))}</code>`;
 					break;
 				case 'line_break':
 					text += (props.hard || breaks) ? br : '\n';
@@ -156,14 +153,14 @@ export function html(options = {}) {
 				case 'code_block': {
 					const syntax = props.syntax;
 					const cls = syntax ? ` class="language-${decodeAndEscapeHtml(syntax, entityChars)}"` : '';
-					text += `<pre><code${cls}>${override ? escapeHtml(overrideInner) : render(node.children, childDepth)}${cbClose}`;
+					text += `<pre><code${cls}>${escapeHtml(overrideInner ?? codeText(node.children))}${cbClose}`;
 				} break;
 				case 'hrule':
 					text += hr;
 					break;
 				case 'html_block': {
-					const innerHtml = overrideInner ?? render(node.children, childDepth);
-					const trimmed = (pretty && innerHtml[innerHtml.length - 1] === '\n') ? innerHtml.slice(0, -1) : innerHtml;
+					const raw = props.value;
+					const trimmed = (pretty && raw[raw.length - 1] === '\n') ? raw.slice(0, -1) : raw;
 					text += `${trimmed}${blockBreak}`;
 				} break;
 				case 'image': {

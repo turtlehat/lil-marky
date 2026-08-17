@@ -27,11 +27,7 @@ export function plain(options = {}) {
 
 		switch (type) {
 			case 'text':
-				// Raw inline HTML has no text form — the same rule html_block follows.
-				if (props.isHtml)
-					return '';
-
-				return props.code ? props.value : decodeEntities(props.value, entityChars);
+				return props.verbatim ? props.value : decodeEntities(props.value, entityChars);
 			case 'paragraph':
 			case 'heading':
 				return innerText ? `${innerText}\n\n` : '';

@@ -1,5 +1,6 @@
 const { expect } = require('chai');
-const { create, html } = require('../../dist/lil-marky.cjs');
+const { characterEntities } = require('character-entities');
+const { create, html, plain } = require('../../dist/lil-marky.cjs');
 
 const marky = create();
 const pretty = html({ pretty: true, xhtml: true });
@@ -53,7 +54,12 @@ describe('html renderer options', () => {
 	});
 
 	it('will escape an entity it has no table entry for', () => {
-		expect(render({}, '&amp; &copy;')).to.equal('<p>&amp; &amp;copy;</p>');
+		expect(render({}, '&amp; &zwnj;')).to.equal('<p>&amp; &amp;zwnj;</p>');
+	});
+
+	it('will decode the common entities without a supplied table', () => {
+		expect(render({}, '&copy; 2026 &mdash; caf&eacute;')).to.equal('<p>© 2026 — café</p>');
+		expect(render({}, '&nbsp;&Eacute;&AElig;&frac12;')).to.equal('<p> ÉÆ½</p>');
 	});
 
 	it('will decode named entities from a supplied table', () => {
@@ -87,6 +93,8 @@ describe('safe links', () => {
 
 	it('will gate the decoded url, not the written one', () => {
 		expect(render({}, '[x](java&#115;cript:alert(1))')).to.equal('<p><a href="">x</a></p>');
+		expect(render({}, '[x](javascript&colon;alert(1))')).to.equal('<p><a href="">x</a></p>');
+		expect(render({}, '[x](javascript&#58;alert(1))')).to.equal('<p><a href="">x</a></p>');
 	});
 
 	it('will gate an image src the same way', () => {
@@ -193,7 +201,37 @@ describe('entities', () => {
 	});
 
 	it('will leave an unknown entity as literal text', () => {
-		expect(render({}, '&nope; &copy;')).to.equal('<p>&amp;nope; &amp;copy;</p>');
+		expect(render({}, '&nope; &zwnj;')).to.equal('<p>&amp;nope; &amp;zwnj;</p>');
+	});
+
+	// A wrong name or value here would invent a mapping no browser agrees with,
+	// and no other test would notice: the spec suite supplies its own table.
+	it('will decode every entity it knows exactly as html5 does', () => {
+		const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+		const wrong = [];
+		let decoded = 0;
+
+		for (const [name, char] of Object.entries(characterEntities)) {
+			const out = render({}, `&${name};`);
+
+			if (out === `<p>&amp;${name};</p>`)
+				continue;
+
+			decoded++;
+
+			if (out !== `<p>${escape(char)}</p>`)
+				wrong.push(`&${name}; -> ${out}`);
+		}
+
+		expect(wrong, 'decoded differently from html5').to.deep.equal([]);
+		expect(decoded, 'entity count changed — update this pin deliberately').to.equal(146);
+	});
+
+	// Decoding happens after parsing, so an entity cannot introduce markup.
+	it('will not let a decoded entity become markdown syntax', () => {
+		expect(render({}, '&ast;&ast;not bold&ast;&ast;')).to.equal('<p>**not bold**</p>');
+		expect(render({}, '&num; not a heading')).to.equal('<p># not a heading</p>');
+		expect(render({}, '&lowbar;&lowbar;not bold&lowbar;&lowbar;')).to.equal('<p>__not bold__</p>');
 	});
 
 	for (const name of ['constructor', 'hasOwnProperty', 'valueOf', 'toString'])
@@ -274,6 +312,23 @@ describe('element overrides', () => {
 		linkify.parse('`' + source + '`', spy);
 		expect(seen).to.equal(source);
 		expect(() => JSON.parse(seen)).to.not.throw();
+	});
+
+	// The same override function is often used for both renderers (parse json once,
+	// emit html or text), so the source they hand it has to be the same string.
+	it('will hand html and plain overrides the same code source', () => {
+		const doc = '`{"a": "<b>&"}`\n\n```json\n{"u":"https://a.co"}\n```';
+		const seen = { html: [], plain: [] };
+		const spy = (into) => ({
+			code: (props, inner) => { into.push(inner); return ''; },
+			code_block: (props, inner) => { into.push(inner); return ''; },
+		});
+
+		create({ features: { extLinkify: true } }).parse(doc, html({ element: spy(seen.html) }));
+		create({ features: { extLinkify: true } }).parse(doc, plain({ element: spy(seen.plain) }));
+
+		expect(seen.html).to.deep.equal(seen.plain);
+		expect(seen.html).to.deep.equal(['{"a": "<b>&"}', '{"u":"https://a.co"}\n']);
 	});
 
 	it('will still escape code when the override declines', () => {

@@ -10,7 +10,34 @@ const numericEntityRegex = /&#(?:([0-9]{1,7})|[xX]([0-9a-fA-F]{1,6}));/y; // dec
 const namedEntityRegex = /&([a-zA-Z][a-zA-Z0-9]{0,30});/y; // 1-31 alphanumerics, starting with a letter
 const existingTripletRegex = /(%[0-9A-Fa-f]{2})/; // split on existing %XX triplets so they aren't re-encoded
 const loneSurrogateRegex = /\p{Surrogate}/gu; // under /u a valid pair is one code point, so this matches only unpaired halves
-const defaultEntities = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+// The entities people actually write. The full HTML5 set is 2125 names and 35KB
+// minified — larger than this whole library — so it stays opt-in via the
+// `entities` render option; these 146 cost ~1.8KB. Names and values are the
+// HTML5 ones exactly: a typo here would invent a mapping no browser agrees with.
+const defaultEntities = {
+	amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', mdash: '—', ndash: '–',
+	hellip: '…', ldquo: '“', rdquo: '”', lsquo: '‘', rsquo: '’', laquo: '«', raquo: '»', bull: '•',
+	middot: '·', copy: '©', reg: '®', trade: '™', sect: '§', para: '¶', dagger: '†', Dagger: '‡',
+	permil: '‰', deg: '°', plusmn: '±', times: '×', divide: '÷', minus: '−', ne: '≠', le: '≤',
+	ge: '≥', asymp: '≈', equiv: '≡', infin: '∞', micro: 'µ', sup1: '¹', sup2: '²', sup3: '³',
+	frac12: '½', frac14: '¼', frac34: '¾', euro: '€', pound: '£', yen: '¥', cent: '¢', curren: '¤',
+	larr: '←', rarr: '→', uarr: '↑', darr: '↓', harr: '↔', prime: '′', Prime: '″', oline: '‾',
+	frasl: '⁄', brvbar: '¦', iexcl: '¡', iquest: '¿', ordf: 'ª', ordm: 'º', not: '¬',
+	shy: '\u00ad', macr: '¯', acute: '´', cedil: '¸', uml: '¨', agrave: 'à', aacute: 'á',
+	acirc: 'â', atilde: 'ã', auml: 'ä', aring: 'å', aelig: 'æ', ccedil: 'ç', egrave: 'è',
+	eacute: 'é', ecirc: 'ê', euml: 'ë', igrave: 'ì', iacute: 'í', icirc: 'î', iuml: 'ï', eth: 'ð',
+	ntilde: 'ñ', ograve: 'ò', oacute: 'ó', ocirc: 'ô', otilde: 'õ', ouml: 'ö', oslash: 'ø',
+	ugrave: 'ù', uacute: 'ú', ucirc: 'û', uuml: 'ü', yacute: 'ý', thorn: 'þ', yuml: 'ÿ',
+	szlig: 'ß', Agrave: 'À', Aacute: 'Á', Acirc: 'Â', Atilde: 'Ã', Auml: 'Ä', Aring: 'Å',
+	Ccedil: 'Ç', Egrave: 'È', Eacute: 'É', Ecirc: 'Ê', Euml: 'Ë', Igrave: 'Ì', Iacute: 'Í',
+	Icirc: 'Î', Iuml: 'Ï', ETH: 'Ð', Ntilde: 'Ñ', Ograve: 'Ò', Oacute: 'Ó', Ocirc: 'Ô',
+	Otilde: 'Õ', Ouml: 'Ö', Oslash: 'Ø', Ugrave: 'Ù', Uacute: 'Ú', Ucirc: 'Û', Uuml: 'Ü',
+	Yacute: 'Ý', THORN: 'Þ', Yuml: 'Ÿ', AElig: 'Æ',
+	// Url structure: decoding these lets the scheme gate see `java&colon;script:`
+	// for what it is, instead of relying on the ampersand escape to defuse it.
+	colon: ':', sol: '/', quest: '?', num: '#', semi: ';', lpar: '(', rpar: ')', comma: ',',
+	equals: '=', period: '.', excl: '!', ast: '*', lowbar: '_', grave: '`', verbar: '|',
+};
 
 // The rewriters copy SPANS between touched chars, not char-by-char — 2.4x.
 function decodeEntities(text, entities) {
